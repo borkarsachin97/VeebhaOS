@@ -1,0 +1,252 @@
+================================================================================
+VeebhaOS: 1-BIT MONOCHROME FONT RENDERING & MULTILINGUAL ENGINE ROADMAP
+Target: RDA8809 (104 MHz MIPS XCPU, 176x220 LCD, GOUDA DMA Blitter, LVGL v9)
+CORE ARCHITECTURAL SPECIFICATIONS
+
+1.1 Rendering Philosophy
+
+Bit Depth: 1-bit per pixel (bpp = 1, monochrome).
+
+Rationale: Eliminates alpha-blend multiplication on the FPU-less 104 MHz MIPS
+core, reduces font storage footprint in Flash by 75% compared to 4-bit, and
+prevents smudged or blurry rendering on the low-DPI 176x220 ILI9225G panel.
+
+Rendering Path: Direct bitwise pixel tests to RGB565 framebuffers, flushed via
+GOUDA DMA to the panel.
+
+1.2 Target Scripts and Typography Selection
+
+Latin (English) & Cyrillic (Russian):
+
+Base Typeface: Terminus (Handcrafted 1-bit bitmap strikes).
+
+Target Heights: 12px (Dense UI/status bar) and 14px (Standard menus/body).
+
+Metrics: Fixed baseline, shared ascender/descender metrics across both
+scripts for uniform mixed-string layout.
+
+Devanagari (Hindi):
+
+Base Typeface: Gargi or hand-tuned bitmap strikes of Lohit Devanagari.
+
+Target Height: 16px (Requires 2 additional vertical pixels over Latin to
+preserve 3-tier matra legibility without compressing base consonants).
+
+Alignment Constraint: Strict horizontal shirorekha (top hanging line)
+pixel-row locking across all consonant and vowel glyphs.
+
+PHASE 1: LATIN & CYRILLIC PIPELINE (ENGLISH & RUSSIAN)
+
+2.1 Unicode Range Definition
+
+Basic Latin & Punctuation:  0x0020 - 0x007E (95 glyphs)
+
+Latin-1 Supplement:         0x00A0 - 0x00FF (Accents, currency, symbols)
+
+Cyrillic Basic (Russian):   0x0410 - 0x044F (Uppercase & lowercase alphabet)
+
+Cyrillic Extras:            0x0401 (Yo), 0x0451 (yo)
+
+2.2 Compilation Toolchain Setup
+
+Install and configure the official LVGL font generator (lv_font_conv).
+
+Command-line generation template:
+lv_font_conv
+
+--font Terminus.ttf
+
+--size 14
+
+--bpp 1
+
+--format lvgl
+
+--symbols " !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+
+--range 0x00A0-0x00FF,0x0400-0x045F
+
+--output veebha_font_latin_cyrillic_14.c
+
+2.3 Verification & Metric Tuning
+
+Validate that all glyphs share identical ascender heights (typically 11px)
+and descender depths (typically 3px).
+
+Verify zero horizontal jitter when strings interleave Latin, numbers, and
+Russian Cyrillic characters.
+
+PHASE 2: DEVANAGARI (HINDI) GRID & SHAPING ARCHITECTURE
+
+Devanagari cannot be rendered linearly like Latin. It requires dedicated
+handling for vertical stacking, continuous top bars, and complex shaping.
+
+3.1 The 3-Tier Vertical Metric Budget (Total Height: 16px)
+
+Upper Tier (Pixels 0-3): Reserved for upper matras (e, ai, anusvara, candrabindu).
+
+Shirorekha Baseline (Pixel 4): Exact 1-pixel continuous horizontal top bar.
+
+Middle Tier (Pixels 5-12): 8-pixel envelope for base consonants (ka, kha, ga, etc.).
+
+Lower Tier (Pixels 13-15): Reserved for bottom matras (u, uu, ri) and virama (halant).
+
+3.2 Complex Text Layout (CTL) Pipeline Strategy
+Choose between two distinct architectural approaches based on binary budget:
+
+Option A: The Manufacturer Method (Lightweight Indic Pre-processor - Recommended)
+
+Footprint: < 8 KB code, zero dynamic RAM allocation.
+
+Mechanism:
+
+Input string passes through a C pre-processor before reaching LVGL.
+
+Rule Engine Step 1: Reorders short "i" matra (U+093F) so it renders before
+the consonant cluster.
+
+Rule Engine Step 2: Scans for consonant + halant (U+094D) + consonant pairs
+and substitutes them with a single index pointing to a pre-rendered
+conjunct glyph stored in a Private Use Area (PUA) table.
+
+Passes pre-composed, linear glyph indices directly to LVGL's label renderer.
+
+Option B: Modern OpenType Engine (LVGL v9 Native HarfBuzz)
+
+Footprint: ~150-200 KB Flash binary increase.
+
+Mechanism: Set LV_USE_HARFBUZZ 1 in lv_conf.h and supply a full OpenType
+Devanagari TTF. HarfBuzz handles all GSUB/GPOS tables dynamically in memory.
+
+3.3 Devanagari Glyph Inventory Requirements
+
+Base Consonants and Independent Vowels: 0x0904 - 0x0939 (~50 glyphs).
+
+Dependent Vowel Signs (Matras) and Modifiers: 0x093E - 0x0954 (~20 glyphs).
+
+Pre-rendered Ligature & Conjunct Table (PUA): ~120 critical conjuncts
+including ksha (क्ष), tra (त्र), jnya (ज्ञ), shra (श्र), ddh (द्ध), tta (त्त),
+and common half-consonants (क्, ख्, च्, न्, म्, ल्, स्).
+
+PHASE 3: LVGL v9 INTEGRATION & FONT FALLBACK ENGINE
+
+4.1 LVGL v9 Configuration Adjustments (lv_conf.h)
+
+Enable 1-bit monochrome support:
+#define LV_FONT_DEFAULT &veebha_font_latin_cyrillic_14
+#define LV_USE_FONT_SUBPX 0
+
+Ensure font cache and memory pool allocate from internal SRAM/PSRAM without
+triggering unaligned 32-bit bus faults on MIPS.
+
+4.2 Multi-Script Font Fallback Chain
+
+Configure LVGL v9 font chaining so that a single lv_label automatically
+displays English, Russian, or Hindi without application intervention:
+
+Primary Font: veebha_font_latin_cyrillic_14 (covers 0x0020 - 0x045F).
+
+Fallback Descriptor: Link fallback pointer to veebha_font_devanagari_16.
+
+When the text engine encounters character codes >= 0x0900, it drops into
+the Devanagari strike automatically.
+
+4.3 Custom Vertical Offset Compensation
+
+Because Devanagari is 16px high and Latin is 14px high, inject an explicit
+2-pixel baseline offset adjustment in the font descriptor struct
+(lv_font_fmt_txt_dsc_t) so the bottom edges of Latin letters visually align
+with the baseline of Devanagari base consonants.
+
+PHASE 4: STORAGE & MEMORY OPTIMIZATION
+
+5.1 Flash ROM Allocation
+
+Place all font bitmap arrays into dedicated read-only linker sections:
+attribute((section(".rodata.fonts")))
+
+Fonts execute directly in place (XIP) from SPI Flash, requiring zero bytes
+of dynamic heap allocation in PSRAM.
+
+5.2 Storage Footprint Budget
+
+Latin + Cyrillic (14px, ~250 glyphs): ~4.5 KB total Flash.
+
+Devanagari Core + Ligature Set (16px, ~200 glyphs): ~6.5 KB total Flash.
+
+Total Multilingual Typography Budget: ~11 KB (Entirely inside Flash ROM).
+
+PHASE 5: STEP-BY-STEP IMPLEMENTATION CHRONOLOGY
+
+Step 1: Latin/Cyrillic Font Generation
+
+Extract Terminus bitmap strikes for 12px and 14px.
+
+Run lv_font_conv to generate veebha_font_latin_cyrillic_14.c.
+
+Compile into OS source tree; display a test string containing English and
+Russian in a basic LVGL label.
+
+Step 2: Devanagari Bitmap Asset Preparation
+
+Extract 16px strikes of Gargi.
+
+Build the core consonant and matra glyph table.
+
+Verify that every glyph has its shirorekha top line anchored at identical
+Y-coordinates across all generated bitmaps.
+
+Step 3: Lightweight Indic Shaper Integration
+
+Implement veebha_indic_shape(const char *in_utf8, char *out_shaped).
+
+Write the matra-reordering transposition function for short 'i' (U+093F).
+
+Build the halant-pair lookup table to map two-character combinations to
+pre-rendered conjunct indices.
+
+Step 4: Font Chaining & Fallback Linking
+
+Link the Latin/Cyrillic font descriptor to the Devanagari descriptor using
+LVGL v9's font->fallback property.
+
+Test mixed strings (e.g., "SMS: नया संदेश (New Message)").
+
+Step 5: UI Template Metric Tuning
+
+Set template list row heights to 28px or 30px to comfortably house 16px
+Devanagari text with 6px top/bottom padding.
+
+Verify scrolling speed across long lists on the hardware ILI9225G display.
+
+PHASE 6: VALIDATION SUITE & TEST MATRICES
+
+7.1 Test Strings for Visual Certification
+
+English & Punctuation:
+"The quick brown fox jumps over 1234567890 lazy dogs! [Settings: OK]"
+
+Russian Cyrillic:
+"Съешь же ещё этих мягких французских булок, да выпей чаю. (123)"
+
+Mixed Script UI Strings:
+"Bluetooth: Подключено / Connected"
+"Audio: चल रहा है / Playing (320kbps)"
+
+Devanagari Conjunct Verification Matrix:
+
+Short 'i' Reordering: कि, किक, दिल्ली, स्थिति
+
+Common Ligatures: क्षत्रिय, ज्ञान, श्रद्धा, द्वार, पत्ता, उत्सव
+
+Continuous Shirorekha Check: भारत सरकार (verify top line has zero breaks)
+
+7.2 Performance Gate
+
+Frame Rate Target: Maintain >= 35 FPS during list scrolling with active
+Devanagari text rendered to the screen.
+
+Heap Memory Delta: 0 KB dynamic RAM allocated during string rendering
+(all glyph reads must stream directly from Flash via pointer arithmetic).
+
+================================================================================

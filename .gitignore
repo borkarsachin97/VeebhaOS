@@ -1,0 +1,38 @@
+# Build directories and targets
+build/
+bin/
+out/
+*.o
+*.a
+*.so
+*.dylib
+*.elf
+*.bin
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile.cmake
+compile_commands.json
+
+# Simulator artifacts and crash dumps
+*.core
+core
+vgcore.*
+*.log
+
+# Test snapshots output
+tests/snapshots/output/
+
+# IDE and Editor configurations
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+/tmp/
+scratch/

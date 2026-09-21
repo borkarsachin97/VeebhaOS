@@ -1,0 +1,181 @@
+================================================================================
+VeebhaOS: CODE HYGIENE, LICENSING & ARCHITECTURAL FIREWALL ROADMAP
+Filename: VeebhaOS_licensing_and_coding_roadmap.txt
+================================================================================
+
+1. CORE LICENSING PHILOSOPHY: THE "LICENSING FIREWALL"
+
+To protect the project from vendor copyright claims while keeping the custom
+operating system completely free and distributable, the repository enforces a
+strict three-tier licensing boundary (Licensing Firewall).
+
+- Rule of Isolation:
+  Proprietary vendor code or hardware driver imports must NEVER be mixed into the
+  same file or folder as our original creations. The SDK, templates, window
+  manager, and user applications must remain 100% clean-room implementations
+  under the permissive MIT License.
+
+- Driver License Preservation:
+  Any low-level peripheral driver derived from, adapted from, or directly taken
+  from vendor trees (RDA / Coolsand / MediaTek) retains its original vendor
+  copyright notice, proprietary header, and disclaimers intact. They must NOT
+  be relicensed under MIT.
+
+- Clean Hardware Abstraction Layer (HAL):
+  Applications and the SDK interact ONLY with generic, MIT-licensed HAL headers
+  (e.g., hal_display.h, hal_input.h). The dirty silicon-specific implementations
+  reside isolated in hardware driver directories.
+
+
+2. REPOSITORY DIRECTORY & FILE LICENSING MATRIX
+
+--------------------------------------------------------------------------------
+Directory / Path                 | License Category        | SPDX Identifier
+--------------------------------------------------------------------------------
+/apps/*                          | Open Source (VeebhaOS)  | MIT
+/sdk/* (win_mgr, templates, etc.)| Open Source (VeebhaOS)  | MIT
+/fonts/generated/*               | Open / Upstream Font    | SIL OFL / Public Domain
+/boards/*.h (board_config.h, etc)| Open Source (VeebhaOS)  | MIT
+/drivers/hal_*.h (HAL Interfaces)| Open Source (VeebhaOS)  | MIT
+/drivers/sim/* (SDL2 Simulator)  | Open Source (VeebhaOS)  | MIT
+/tests/*                         | Open Source (VeebhaOS)  | MIT
+/tools/*                         | Open Source (VeebhaOS)  | MIT
+--------------------------------------------------------------------------------
+/drivers/target_rda8809/*        | Proprietary / Original  | LicenseRef-Proprietary
+/third_party/lvgl/               | Upstream License        | MIT
+/third_party/freertos/           | Upstream License        | MIT
+/third_party/littlefs/           | Upstream License        | BSD-3-Clause
+/third_party/fatfs/              | Upstream License        | ChaN / Permissive
+--------------------------------------------------------------------------------
+
+
+3. STANDARD FILE HEADER TEMPLATES (SPDX STANDARDS)
+
+Every source (.c) and header (.h) file must begin with one of two standardized
+header blocks.
+
+3.1 For Original OS Code (SDK, Apps, Templates, Board Configs, Simulator):
+--------------------------------------------------------------------------------
+/*
+ * VeebhaOS - Embedded Operating System for Feature Phones
+ *
+ * Copyright (C) 2026 VeebhaOS Project Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ */
+--------------------------------------------------------------------------------
+
+3.2 For Vendor-Derived Hardware Drivers (drivers/target_rda8809/):
+--------------------------------------------------------------------------------
+/*
+ * Hardware Peripheral Driver: [Peripheral Name, e.g., GOUDA LCD Blitter]
+ *
+ * Target: RDA8809 / Coolsand Baseband Architecture
+ *
+ * NOTICE:
+ * This file contains hardware-specific interface definitions and driver logic
+ * derived from or compatible with original hardware vendor reference code.
+ * All original vendor copyrights, trade secret restrictions, and disclaimers
+ * remain intact as provided by the original source.
+ *
+ * SPDX-License-Identifier: LicenseRef-Proprietary-Vendor
+ *
+ * THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY OR
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ */
+--------------------------------------------------------------------------------
+
+
+4. ARCHITECTURAL ENCAPSULATION & CLEAN-ROOM RULES
+
+Rule 1: No Vendor Includes in the SDK or Apps
+- Application code (/apps/) and UI middleware (/sdk/) must NEVER include vendor
+  chip registers or vendor HAL headers directly (e.g., #include "cs_types.h",
+  #include "hal_gouda.h", #include "rda8809_registers.h").
+- Apps and SDK include ONLY clean abstract headers:
+  #include "veebha_sdk.h"
+  #include "hal_display.h"
+  #include "hal_input.h"
+
+Rule 2: Board Headers Are Declarative Only
+- board_config.h, board_phoenix.h, and board_simulator.h contain ONLY compile-time
+  configuration constants, dimension definitions, and feature presence flags.
+- Board headers must not include executable driver code, inline assembly, or
+  proprietary register macros.
+
+Rule 3: Clean Mock Drivers for Simulator
+- The SDL2 simulator drivers (drivers/sim/sdl_*.c) are 100% original code under
+  MIT, allowing the entire OS to be distributed, cloned, compiled, and tested
+  on Linux without downloading or publishing a single line of proprietary vendor code.
+
+
+5. CODING STANDARDS & CODE HYGIENE SPECIFICATIONS
+
+5.1 Language & Standard
+- C Standard: Strict C99 / C11 compliance.
+- No GCC-specific extensions that break cross-compilation between host x86_64
+  and target MIPS32.
+
+5.2 Header Guards
+- Use standard uppercase path-based header guards to avoid collision:
+  #ifndef VEEBHA_CORE_WIN_MGR_H
+  #define VEEBHA_CORE_WIN_MGR_H
+  ...
+  #endif /* VEEBHA_CORE_WIN_MGR_H */
+
+5.3 Data Types
+- Standard fixed-width integer types from <stdint.h> and <stdbool.h>:
+  uint8_t, int16_t, uint32_t, bool (true/false).
+- Explicitly avoid non-standard vendor types (U8, U16, U32, kal_uint32) in all
+  SDK and App layers.
+
+5.4 Zero-Coordinate Contract Enforcement
+- Application views must define content using the declarative template structs:
+  `tpl_list_view_t`, `tpl_grid_view_t`, `tpl_dialog_view_t`.
+- Never call lv_obj_set_pos(), lv_obj_set_x(), or lv_obj_set_y() inside
+  standard application code.
+
+5.5 Memory Lifecycle Rules
+- Dynamic Allocation: UI elements allocated during `win_mgr_push_app()` must have
+  their parent container bound to the window descriptor.
+- Destruction Hook: `win_mgr_pop_app()` must call `lv_obj_del()` on the screen root
+  object to recursively delete all child objects, styles, and group assignments.
+- String Buffers: Dynamic string manipulations must use bounded functions:
+  snprintf(), strncpy() — NEVER sprintf() or strcpy().
+
+
+6. STEP-BY-STEP IMPLEMENTATION & AUDITING CHECKLIST
+
+[ ] Step 1: Initialize Git Repository with Licensing Structure
+    - Place LICENSE (MIT) in the repository root for VeebhaOS.
+    - Create docs/licenses/ containing third-party licenses (LVGL, FreeRTOS).
+
+[ ] Step 2: Establish the HAL Boundary
+    - Create drivers/hal_display.h and drivers/hal_input.h containing pure C
+      function pointer interfaces under MIT.
+
+[ ] Step 3: Implement Simulator Drivers Under MIT
+    - Write drivers/sim/sdl_display.c and drivers/sim/sdl_input.c.
+    - Verify that `make sim` builds cleanly without referencing any proprietary file.
+
+[ ] Step 4: Isolate Hardware Target Drivers
+    - Move all RDA8809 vendor-specific files into drivers/target_rda8809/.
+    - Apply the Proprietary-Vendor header block to each vendor source file.
+    - Verify that no SDK header includes files from this directory.
+
+[ ] Step 5: Automated License & Header Linter
+    - Add a Python linting script (tools/check_licenses.py) in CI to verify that
+      every file in /apps/, /sdk/, and /boards/ has the correct SPDX MIT header.
+
+================================================================================

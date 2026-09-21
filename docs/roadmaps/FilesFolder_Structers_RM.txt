@@ -1,0 +1,183 @@
+================================================================================
+VeebhaOS: OFFICIAL PROJECT DIRECTORY STRUCTURE ROADMAP
+Filename: VeebhaOS_folder_structure.txt
+================================================================================
+
+veebhaos/
+│
+├── CMakeLists.txt                      # Top-level master CMake build file
+├── Makefile                            # Top-level helper (make sim, make test, etc.)
+├── README.md                           # Project overview, build instructions, toolchain
+│
+├── docs/                               # All system documentation and architectural specs
+│   ├── roadmaps/                       # Master project execution roadmaps
+│   │   ├── VeebhaOS_execution_roadmap.txt
+│   │   ├── VeebhaOS_font_rendering_roadmap.txt
+│   │   ├── VeebhaOS_sdk_roadmap.txt
+│   │   ├── VeebhaOS_test_roadmap.txt
+│   │   └── VeebhaOS_folder_structure.txt
+│   ├── specs/                          # Technical specifications
+│   │   ├── vapp_binary_spec.md         # .vapp external binary format and ABI rules[cite: 1]
+│   │   ├── ui_template_contracts.md    # API specifications for all 5 UI templates
+│   │   └── memory_map.md               # 8 MB RAM and 4 MB Flash allocation maps[cite: 1]
+│   └── hardware/                       # Hardware manuals and pinouts (RDA8809, ILI9225G)
+│
+├── boards/                             # Board-level configurations and pin definitions
+│   ├── board_config.h                  # Master compile-time board selector switchboard[cite: 1]
+│   ├── simulator/                      # Linux SDL2 Desktop Simulator profile
+│   │   ├── board_simulator.h           # Simulator resolution, flags, and memory fences[cite: 1]
+│   │   ├── sim_main.c                  # Simulator entry point (SDL2 window, event loop)
+│   │   └── sim_keyboard_map.c          # PC keyboard to 12-key phone matrix translation[cite: 1]
+│   ├── phoenix/                        # Primary hardware target: RDA8809 176x220[cite: 1]
+│   │   ├── board_phoenix.h             # Clock speeds, GOUDA pinout, PMD power rails[cite: 1]
+│   │   └── target_init.c               # Early MIPS assembly bootstrap and PLL setup
+│   └── mumba/                          # Secondary hardware profile: QVGA 240x320[cite: 1]
+│       └── board_mumba.h               # Alternate display dimensions and feature flags[cite: 1]
+│
+├── sdk/                                # Tier 2: Shell, Template Engine & Middleware
+│   ├── include/                        # Public SDK headers (accessible by applications)
+│   │   ├── veebha_sdk.h                # Umbrella header for apps
+│   │   ├── veebha_win_mgr.h            # Navigation stack push/pop prototypes[cite: 1]
+│   │   ├── veebha_templates.h          # 5 standard UI template API declarations
+│   │   ├── veebha_softkeys.h           # Softkey label and callback setters[cite: 1]
+│   │   ├── veebha_t9.h                 # Multi-tap input engine integration[cite: 1]
+│   │   ├── veebha_log.h                # Structured logging API (vAppLog)[cite: 1]
+│   │   └── veebha_audio.h              # High-level audio playback service
+│   ├── core/                           # System chrome and runtime framework
+│   │   ├── win_mgr.c                   # LIFO navigation stack with auto-cleanup[cite: 1]
+│   │   ├── status_bar.c                # Fixed 18px persistent top chrome[cite: 1]
+│   │   ├── softkey_bar.c               # Fixed 20px dynamic bottom chrome[cite: 1]
+│   │   ├── app_registry.c              # Application discovery and manifest loader
+│   │   └── app_loader.c                # External .vapp loader and safety verifier[cite: 1]
+│   ├── templates/                      # Zero-coordinate UI template implementations
+│   │   ├── tpl_list.c                  # Template 1: Vertical flex column list view[cite: 1]
+│   │   ├── tpl_grid.c                  # Template 2: 3x3 / 4x3 matrix grid view[cite: 1]
+│   │   ├── tpl_dialog.c                # Template 3: Centered modal card with dim mask[cite: 1]
+│   │   ├── tpl_editor.c                # Template 4: Text editor wired to T9 engine[cite: 1]
+│   │   └── tpl_media.c                 # Template 5: 4-slot media/dashboard layout[cite: 1]
+│   ├── input/                          # Keypad event router and text parsing
+│   │   ├── t9_engine.c                 # Alphanumeric cycling (abc, ABC, 123)[cite: 1]
+│   │   └── keypad_router.c             # Short/long press detection and D-pad routing[cite: 1]
+│   └── text/                           # Font rendering and script shaping middleware
+│       ├── indic_shaper.c              # Devanagari matra reordering and ligature mapper[cite: 1]
+│       └── font_fallback.c             # LVGL v9 multi-script fallback engine[cite: 1]
+│
+├── apps/                               # Tier 1: User-Facing Applications (Zero-Coordinate)
+│   ├── home/                           # Application Launcher (3x3 grid)[cite: 1]
+│   │   ├── app_home.h
+│   │   └── app_home.c
+│   ├── dialer/                         # Phone dialer and live T9 contact search[cite: 1]
+│   │   ├── app_dialer.h
+│   │   └── app_dialer.c
+│   ├── contacts/                       # Contact book manager[cite: 1]
+│   │   ├── app_contacts.h
+│   │   └── app_contacts.c
+│   ├── calllogs/                       # Call records (Incoming, Outgoing, Missed)[cite: 1]
+│   │   ├── app_calllogs.h
+│   │   └── app_calllogs.c
+│   ├── messages/                       # SMS thread list and message editor[cite: 1]
+│   │   ├── app_messages.h
+│   │   └── app_messages.c
+│   ├── settings/                       # System configuration suite[cite: 1]
+│   │   ├── app_settings.h
+│   │   ├── app_settings.c              # Main settings category list[cite: 1]
+│   │   ├── sub_display.c               # Backlight timeouts, themes, scales[cite: 1]
+│   │   ├── sub_datetime.c              # Manual RTC time configuration[cite: 1]
+│   │   ├── sub_language.c              # System language selector[cite: 1]
+│   │   └── sub_about.c                 # Reads board_config.h and build metadata[cite: 1]
+│   ├── music/                          # Audio player (VoC on silicon, SDL on sim)[cite: 1]
+│   │   ├── app_music.h
+│   │   └── app_music.c
+│   ├── gallery/                        # Photo and bitmap thumbnail viewer[cite: 1]
+│   │   ├── app_gallery.h
+│   │   └── app_gallery.c
+│   ├── filemgr/                        # Directory explorer for Flash and SD card[cite: 1]
+│   │   ├── app_filemgr.h
+│   │   └── app_filemgr.c
+│   ├── radio/                          # FM Radio controller[cite: 1]
+│   │   ├── app_fm_radio.h
+│   │   └── app_fm_radio.c
+│   ├── recorder/                       # Voice recorder[cite: 1]
+│   │   ├── app_recorder.h
+│   │   └── app_recorder.c
+│   ├── utilities/                      # Lightweight tools and mini-apps
+│   │   ├── app_calc.c                  # Calculator[cite: 1]
+│   │   ├── app_calendar.c              # D-pad accessible month matrix[cite: 1]
+│   │   ├── app_clock.c                 # Alarm clock and timer[cite: 1]
+│   │   ├── app_torch.c                 # High-brightness flashlight[cite: 1]
+│   │   ├── app_browser.c               # Very lite text-only web browser[cite: 1]
+│   │   └── app_netradio.c              # Internet radio client stub[cite: 1]
+│   ├── games/                          # Built-in entertainment
+│   │   └── app_snake.c                 # Classic retro snake game[cite: 1]
+│   └── overlays/                       # Top-layer system overlays (lv_layer_top)
+│       ├── notif_panel.c               # Quick Settings drawer (Hold Call key)[cite: 1]
+│       ├── task_mgr.c                  # Multitasking switcher carousel (Hold * key)[cite: 1]
+│       ├── screen_saver.c              # Low-power idle bouncing clock[cite: 1]
+│       └── boot_screen.c               # Animated Phoenix startup sequence[cite: 1]
+│
+├── drivers/                            # Tier 3: Hardware Abstraction & Peripheral Drivers
+│   ├── hal_display.h                   # Display driver interface (flush, rotate, power)
+│   ├── hal_input.h                     # Keypad driver interface (read, scan, debounce)
+│   ├── hal_audio.h                     # Audio DAC and DMA driver interface
+│   ├── hal_storage.h                   # Block device driver interface (Flash/SD)
+│   │
+│   ├── sim/                            # Simulator Driver Implementations (Linux / SDL2)
+│   │   ├── sdl_display.c               # Maps LVGL flush to SDL2 texture renderer
+│   │   ├── sdl_input.c                 # Maps SDL keyboard events to VeebhaOS keypad queue
+│   │   ├── sdl_audio.c                 # Emulates VoC / AIF via SDL audio callbacks
+│   │   └── sim_storage.c               # Maps LittleFS/FatFS to local host directories
+│   │
+│   └── target_rda8809/                 # Real Hardware Silicon Drivers (Future Target)
+│       ├── gouda_display.c             # RDA8809 GOUDA DMA controller (0x01A1B000)
+│       ├── keypad_matrix.c             # Hardware matrix scanner ISR and debouncer
+│       ├── voc_audio.c                 # VoC DSP mailbox handshake & vpp_mp3 loader
+│       ├── aif_dma.c                   # Audio Interface (AIF) circular DMA engine
+│       ├── spi_flash.c                 # Serial SPI Flash controller (LittleFS backend)
+│       ├── sdmmc.c                     # Hardware SD/MMC driver (FatFS backend)
+│       └── pmd_power.c                 # Power Management Unit (LDOs, backlight sinks)
+│
+├── fonts/                              # 1-Bit Typography Pipeline
+│   ├── source/                         # Original font source files
+│   │   ├── Terminus.ttf                # Handcrafted pixel bitmap strikes (12px, 14px)[cite: 1]
+│   │   └── Gargi.ttf                   # Benchmark 3-tier Devanagari font (16px)[cite: 1]
+│   ├── generated/                      # Compiled C font descriptor arrays
+│   │   ├── veebha_font_latin_cyrillic_12.c
+│   │   ├── veebha_font_latin_cyrillic_14.c[cite: 1]
+│   │   └── veebha_font_devanagari_16.c    [cite: 1]
+│   └── scripts/                        # Automated compilation scripts
+│       └── build_fonts.sh              # Invokes lv_font_conv with --bpp 1 flags[cite: 1]
+│
+├── resources/                          # Static Assets & Simulated Storage
+│   ├── icons/                          # 1-bit or 16-bit RGB565 compressed C icon arrays
+│   │   ├── status_bar/                 # Battery, SIM, Bluetooth, Alarm icons
+│   │   └── launcher/                   # 3x3 Home grid application icons[cite: 1]
+│   ├── strings/                        # Multilingual localization tables
+│   │   ├── strings_en.c                # English string catalog
+│   │   ├── strings_hi.c                # Hindi string catalog (UTF-8)
+│   │   └── strings_ru.c                # Russian string catalog (UTF-8)
+│   ├── mock_flash/                     # Host directory mounted as simulated LittleFS
+│   └── mock_sdcard/                    # Host directory mounted as simulated /sdcard/[cite: 1]
+│
+├── tests/                              # Verification, Profiling & Test Harness
+│   ├── unit/                           # Standalone unit tests (compiled and run via CTest)
+│   │   ├── test_t9_parser.c            # Multi-tap timing and character sequence tests
+│   │   ├── test_indic_shaper.c         # Hindi matra reordering and ligature validation
+│   │   └── test_win_stack.c            # Window history push/pop depth and memory tests
+│   ├── snapshots/                      # Automated visual regression suite
+│   │   ├── golden/                     # Reference approved PNG screenshots (01_boot.png, etc.)[cite: 1]
+│   │   ├── output/                     # Headless test run framebuffer dumps[cite: 1]
+│   │   └── compare_snapshots.py        # Image diff script flagging visual regressions[cite: 1]
+│   └── fuzz/                           # Automated stress testing
+│       └── keypad_fuzzer.c             # Random keypress generator for leak detection[cite: 1]
+│
+├── third_party/                        # External Open-Source Dependencies
+│   ├── lvgl/                           # Pristine, unmodified LVGL v9 (git submodule)[cite: 1]
+│   ├── freertos/                       # FreeRTOS kernel (used for silicon target builds)[cite: 1]
+│   ├── littlefs/                       # Wear-leveling Flash file system[cite: 1]
+│   └── fatfs/                          # ChaN's FAT file system for SD storage[cite: 1]
+│
+└── tools/                              # Host-side development scripts
+    ├── run_simulator.sh                # Builds and runs desktop SDL2 simulator
+    ├── run_headless_tests.sh           # Executes snapshot generator and diff runner
+    └── run_valgrind.sh                 # Executes memory leak and ASAN profiling
+================================================================================

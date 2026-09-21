@@ -1,0 +1,315 @@
+================================================================================
+VeebhaOS: OFFICIAL ENGINEERING & DELIVERY ROADMAP
+Target Architecture: RDA8809 / Multi-SoC MIPS32 & ARM Profiles
+Development Environment: Native Linux SDL2 Simulator + Hardware Toolchain
+Default Target: 104 MHz MIPS XCPU, 176x220 ILI9225G LCD, GOUDA DMA, LVGL v9
+================================================================================
+
+--------------------------------------------------------------------------------
+🗺️ VeebhaOS High-Level Execution Sequence
+--------------------------------------------------------------------------------
+
+[Phase 1: Board Profiles, Display Core & Linux SDL2 Simulator]
+                              │
+                              ▼
+[Phase 2: Input Layer, 1-Bit Fonts & UI Template Engine]
+                              │
+                              ▼
+[Phase 3: Core Telephony & Productivity Apps]
+                              │
+                              ▼
+[Phase 4: Multimedia Suite, Utilities & System Overlays]
+                              │
+                              ▼
+[Phase 5: Multi-Resolution Board Validation & App Loader]
+                              │
+                              ▼
+[Phase 6: Automated CI, Framebuffer Snapshot Harness & Profiling]
+
+--------------------------------------------------------------------------------
+🧱 Phase 1: Board Configuration, Display Pipeline & Linux Desktop Simulator
+--------------------------------------------------------------------------------
+Establish board-level compile-time abstraction, dual-target build harness
+(Linux SDL2 desktop simulator vs. bare-metal MIPS target), and graphics pipeline.
+
+1. Dual-Target Development Environment (Linux SDL2 Simulator):
+   - Native host compilation via GCC/Clang and CMake/Ninja on Linux desktop.
+   - SDL2 window abstraction mapping directly to LVGL v9 display driver:
+     * Real-time 1:1 pixel preview at target resolutions (176x220, 240x320)[cite: 1].
+     * Virtual display rotation handling (0°, 90°, 180°, 270°) inside SDL2 window[cite: 1].
+   - PC Keyboard to Phone Matrix Mapper:
+     * Arrow Keys -> D-Pad (Up, Down, Left, Right)[cite: 1]
+     * Enter / Space -> D-Pad Center / OK[cite: 1]
+     * Left Alt / F1 -> Left Soft Key (LSK)[cite: 1]
+     * Right Alt / F2 / Escape -> Right Soft Key (RSK)[cite: 1]
+     * Numeric Keypad (0-9, *, #) -> Phone Alphanumeric Matrix[cite: 1]
+     * 'C' Key -> Call Key (short-press / long-press)[cite: 1]
+     * 'E' Key -> End / Power Key[cite: 1]
+   - Instant sub-second compile-run cycle with full native GDB and Valgrind support,
+     allowing rapid UI debugging without hardware flashing cycles.
+
+2. Board Configuration Switchboard (src/board_config.h):
+   - Modular device profiles selected at compile time (e.g., board_phoenix.h,
+     board_mumba.h, board_simulator_sdl.h)[cite: 1].
+   - Hardware presence macros: CONFIG_BOARD_2G (RDA8809), CONFIG_BOARD_LTE (CAT-1 SoCs),
+     CONFIG_BOARD_SDCARD, CONFIG_BOARD_VOC, and peripheral clock gates[cite: 1].
+   - Display dimension constants defined per board: CONFIG_DISP_HOR_RES (e.g., 176),
+     CONFIG_DISP_VER_RES (e.g., 220), and color format (RGB565)[cite: 1].
+
+3. LVGL v9 Core Port & Display Abstraction Layer (DAL):
+   - Configure lv_conf.h with custom LV_MEM_SIZE of 2 MB from available 8 MB RAM[cite: 1].
+   - Implement lv_display_create() with double display partial buffers sized to
+     1/10th screen height to minimize RAM footprint and prevent tearing[cite: 1].
+   - Hardware target: Bind flush callback to RDA GOUDA hardware blitter DMA engine.
+   - Simulator target: Bind flush callback to SDL_UpdateTexture / SDL_RenderCopy.
+   - Display driver interface supporting hardware-level rotation (0°, 90°, 180°, 270°)[cite: 1].
+
+4. Design Tokens & Visual Theme:
+   - High-contrast feature phone dark palette:
+     * Background: Dark Charcoal / Pure Black (#121212 / #000000)[cite: 1]
+     * Primary Accent: High-Contrast Cyan (#00E5FF)[cite: 1]
+     * Secondary Accent: Amber (#FFC107)[cite: 1]
+   - Support for high-contrast power-saving light/dark theme switching[cite: 1].
+
+5. Phase 1 Milestone:
+   - Clean compilation on Linux desktop SDL2 simulator and MIPS32 cross-toolchain[cite: 1].
+   - Desktop simulator opens a pixel-perfect window and responds to PC keyboard
+     events; hardware target boots to solid background and flushes test patterns[cite: 1].
+
+--------------------------------------------------------------------------------
+🎮 Phase 2: Input Layer, 1-Bit Fonts & UI Template Engine
+--------------------------------------------------------------------------------
+Implement keypad mediation, 1-bit typography, and the zero-coordinate
+declarative UI template engine so subsequent apps require zero manual layout math.
+
+1. Input Abstraction Layer (IAL - src/hal/hal_input.c):
+   - Map 12-key matrix keypad events: LSK, RSK, D-Pad (Up/Down/Left/Right/OK),
+     Call, End/Power, 0-9, *, #[cite: 1].
+   - Hardware/software debounce and timer-based press duration:
+     * Short-press vs. Long-press detection[cite: 1].
+     * Call key long-press -> Quick Settings Drawer[cite: 1].
+     * Star (*) key long-press -> Multitasking Task Switcher[cite: 1].
+   - Dedicated Idle Screen Shortcuts: D-Pad Up (Quick Settings), Down (Call Logs),
+     Left (New SMS), Right (Media/Radio)[cite: 1].
+
+2. T9 & Multi-Tap Character Engine (src/core/t9_engine.c):
+   - Multi-tap character cycling for modes: abc, ABC, 123[cite: 1].
+   - Hash (#) key cycles input modes, updating active visual tags[cite: 1].
+   - Configurable character timeout timer (~800ms) for character commit.
+
+3. 1-Bit Monochrome Typography Pipeline:
+   - Latin & Cyrillic: Terminus 12px (status bar) and 14px (standard UI body)[cite: 1].
+   - Devanagari (Hindi): Gargi 16px with 3-tier vertical metric layout (upper matra,
+     shirorekha top line, base consonant, lower matra)[cite: 1].
+   - Lightweight Indic shaping pre-processor for matra reordering (short 'i') and
+     pre-rendered conjunct ligature resolution (ksha, tra, jnya, etc.)[cite: 1].
+   - LVGL v9 font chaining via font->fallback linking Latin/Cyrillic to Devanagari[cite: 1].
+   - Bitmaps stored in Flash .rodata.fonts for zero dynamic RAM overhead[cite: 1].
+
+4. Zero-Coordinate UI Template Engine (src/core/ui_templates.c):
+   - Screen Viewport Partitioning:
+     * Status Bar: Fixed 18px top region (network bars, clock, battery icon)[cite: 1].
+     * Content Viewport: Elastic middle area auto-filled via Flexbox or Grid.
+     * Softkey Bar: Fixed 20px bottom region (dynamic LSK/RSK text and action dispatch)[cite: 1].
+   - Standard Declarative Templates:
+     * Template 1 (List View): Vertical flex column, auto-calculated row heights,
+       center-locked scroll snapping, auto-registration to D-pad navigation group[cite: 1].
+     * Template 2 (Grid View): Uniform 3x3 or 4x3 grid layout with 4-way D-pad wrapping[cite: 1].
+     * Template 3 (Dialog/Alert): Modal card with background dimming and softkey hijack[cite: 1].
+     * Template 4 (Editor): Text container wired directly to T9 multi-tap engine[cite: 1].
+     * Template 5 (Media/Dashboard): Visual asset, track/caller headline, and progress slider[cite: 1].
+
+5. Window & Lifecycle Navigation Stack (src/core/win_mgr.c):
+   - LIFO execution stack (win_mgr_push_app, win_mgr_pop_app)[cite: 1].
+   - Auto-destruction of popped screens with heap reclamation[cite: 1].
+   - Position-memory tracking restoring D-pad focus to previous row indices upon pop[cite: 1].
+   - Animated Boot Screen (src/ui/boot_screen.c): Phoenix branding, progress
+     indicator, and auto-transition to Home[cite: 1].
+
+6. Phase 2 Milestone:
+   - D-pad and softkeys navigate between empty template views in the SDL2 simulator;
+     multi-tap text entry and mixed English/Russian/Hindi labels render cleanly
+     without manual coordinate code.
+
+--------------------------------------------------------------------------------
+📞 Phase 3: Core Telephony & Productivity Apps
+--------------------------------------------------------------------------------
+Build primary communication screens directly on top of Phase 2 templates.
+
+1. Home Screen (app_home.c):
+   - Built with Template 2 (Grid View)[cite: 1].
+   - 3x3 paged application grid (Page 1: Phone, Contacts, Messages, Music,
+     Settings, Files, Gallery, Radio, Game; Page 2: Utilities)[cite: 1].
+   - Page-dot indicators ([● ○] and [○ ●]) and 1-9 numeric quick-launch keys[cite: 1].
+
+2. Dialer (app_dialer.c) & Contacts (app_contacts.c):
+   - Live numeric entry screen with predictive contact search matching[cite: 1].
+   - Outgoing call modal overlay with HD Voice call timer and LSK/RSK Call/End hooks[cite: 1].
+   - Contacts list using Template 1 (List View) with search header[cite: 1].
+
+3. Call Logs App (app_calllogs.c):
+   - Tabbed or filtered List View grouping Incoming, Outgoing, and Missed records[cite: 1].
+   - Reads from circular memory-mapped log file storing caller ID, timestamp, and duration[cite: 1].
+
+4. Messages (app_sms.c):
+   - SMS conversation thread inbox via Template 1[cite: 1].
+   - Fullscreen message composer via Template 4 (Editor) using the T9 engine[cite: 1].
+
+5. Settings Suite (app_settings.c):
+   - Categorized List View: Connectivity, Display, Sound, Security PIN, Storage[cite: 1].
+   - Date & Time Sync (manual RTC configuration view)[cite: 1].
+   - Language Selector (dynamic string table pointer switching)[cite: 1].
+   - Auto Power On/Off (RTC timed alarm interrupt scheduler)[cite: 1].
+   - Display & Keypad Backlight Timeouts (idle countdown timers: 10s, 30s, 1m)[cite: 1].
+   - Input Language Selector (toggles T9 character maps)[cite: 1].
+   - Custom Boot Greetings Text register[cite: 1].
+   - "About Phone" screen auto-parsing compile-time macros from board_config.h[cite: 1].
+
+6. Phase 3 Milestone:
+   - Core communication and settings suite fully operational on SDL2 simulator
+     and hardware using mock/real modem queues and persistent stack navigation[cite: 1].
+
+--------------------------------------------------------------------------------
+🎵 Phase 4: Utilities, Media Suite & Overlays
+--------------------------------------------------------------------------------
+Complete secondary apps, multimedia services, and system-wide overlay drawers.
+
+1. Multimedia Applications:
+   - Music Player (app_music.c): Built with Template 5. Offloads MP3/AAC decoding
+     to the VoC DSP via vpp_mp3 microcode on silicon, or uses software audio stub
+     under the SDL2 simulator[cite: 1]. Displays metadata (Title/Artist), album artwork,
+     progress bar, and play/pause state[cite: 1].
+   - FM Radio (app_fm_radio.c): Frequency bar (87.5-108.0 MHz) and preset channels[cite: 1].
+   - Voice Recorder (app_recorder.c): AMR/WAV encoder using VoC/AIF with timer[cite: 1].
+   - Photo Gallery (app_gallery.c): Grid thumbnail viewer and full-screen RGB565 blitter[cite: 1].
+   - Video Player Stub (app_video.c): Lightweight MJPEG/raw frame slice blitter
+     streaming directly from storage into an LVGL canvas[cite: 1].
+
+2. Utilities & Tools:
+   - File Manager (app_filemgr.c): Dual directory navigator for internal LittleFS
+     flash and external FatFS /sdcard/ (simulated via local host directory on Linux)[cite: 1].
+   - Calculator (app_calc.c): Grid arithmetic parsing mapped to D-pad shortcuts[cite: 1].
+   - Calendar (app_calendar.c): Month matrix adapted for 4-way D-pad navigation[cite: 1].
+   - Alarm Clock (app_clock.c): Digital time layout with RTC interrupt triggers[cite: 1].
+   - Torch (app_torch.c): Max-brightness canvas + PMU/GPO flashlight LED toggle[cite: 1].
+   - Retro Snake (app_game.c): Grid game loop, D-pad steering, score tracking[cite: 1].
+   - Very Lite Web Browser Stub (app_browser.c): Text-only parser rendering pure
+     structured markup without CSS or JavaScript[cite: 1].
+   - Internet Radio Stub (app_netradio.c): Stream controller framing buffer charts
+     and station selectors over Bluetooth PANU / host network sockets[cite: 1].
+
+3. System Overlays (Top Layer):
+   - Quick Settings Panel (notif_panel.c): Half-height pull-down on lv_layer_top()
+     triggered by holding Call button[cite: 1]. Toggles for Bluetooth, Backlight slider,
+     Torch, and Silent profile[cite: 1].
+   - Multitasking Manager (task_mgr.c): Card carousel on lv_layer_top() triggered
+     by holding Star (*)[cite: 1]. Switches active apps or terminates to reclaim RAM[cite: 1].
+   - Screen Saver Engine: Low-overhead bouncing digital clock clearing active view
+     after prolonged system idle[cite: 1].
+
+4. Phase 4 Milestone:
+   - All built-in apps and top-layer overlays fully accessible via keypad in both
+     SDL2 simulator and hardware target[cite: 1].
+
+--------------------------------------------------------------------------------
+📦 Phase 5: Multi-Resolution Board Validation & App Loader
+--------------------------------------------------------------------------------
+Ensure display abstraction scales across targets and establish modular app loading.
+
+1. Multi-Resolution Board Profile Verification:
+   - Validate compile-time board targets:
+     * Profile Phoenix: 176x220 portrait (RDA8809 2G)[cite: 1].
+     * Profile Mumba: 240x320 QVGA portrait[cite: 1].
+     * Profile Landscape: 320x240 / 220x176 landscape modes[cite: 1].
+   - Verify instantaneous resolution switching in SDL2 simulator via build flags:
+     e.g., `cmake -DBOARD_PROFILE=mumba .. && make run`
+   - Verify that all declarative templates (List, Grid, Dialog, Editor) adapt
+     proportions automatically using CONFIG_DISP_HOR_RES and CONFIG_DISP_VER_RES
+     without layout code changes[cite: 1].
+
+2. External App Loader Specification (src/core/app_loader.c):
+   - Specify .vapp binary package format (magic header, target OS API version,
+     entry symbol offset, requested heap budget)[cite: 1].
+   - Execution Model for No-MMU Hardware:
+     * Approach A (Native): Position-Independent Code (PIC / -mabicalls) ELF
+       relocation loader resolving OS syscall symbols at load time.
+     * Approach B (Sandboxed VM): Lightweight bytecode interpreter (e.g., WASM
+       micro-runtime or Lua) executing safely within an isolated heap slice.
+   - Enforce memory fences: Reject loading if .vapp allocation exceeds available
+     free boundaries inside the 8 MB RAM limit[cite: 1].
+   - Register .vapp MIME handler in the File Manager for one-click launching[cite: 1].
+
+3. Phase 5 Milestone:
+   - The same application codebase compiles and renders proportionally on both
+     176x220 and 240x320 board profiles; external .vapp program executes
+     successfully from SD storage[cite: 1].
+
+--------------------------------------------------------------------------------
+🧪 Phase 6: Automated Verification, CI Pipeline & Profiling
+--------------------------------------------------------------------------------
+Enforce budget adherence, stability gates, and regression testing.
+
+1. Headless Test & Snapshot Harness (src/main.c):
+   - Command-line flag (--snapshot) running under the Linux SDL2 build without
+     opening an interactive GUI window[cite: 1].
+   - Automated script systematically visits all application screens, modals,
+     and overlays, dumping raw framebuffers via lv_snapshot_take()[cite: 1].
+   - Python pipeline converting raw frame dumps into reference PNGs under
+     /app/screenshots/ (01_boot.png through 16_torch.png)[cite: 1].
+
+2. Resource Budget & Memory Leak Auditing:
+   - Enforce Flash ceiling: Total compiled OS binary must stay under 4 MB Flash
+     (< 650 KB target for baseline build)[cite: 1].
+   - Profile dynamic heap: Active operational RAM usage must remain within
+     the 2 MB LVGL heap partition under full load[cite: 1].
+   - Host Valgrind & ASAN analysis on Linux SDL2 simulator to catch buffer
+     overruns and memory leaks before flashing silicon.
+   - 12-Hour Automated Keypad Fuzzing: Scripted random D-pad, Call, and Softkey
+     stress tests to verify zero memory leaks in the window navigation stack[cite: 1].
+
+3. Phase 6 Milestone:
+   - Green continuous integration run with automated snapshot diffing and
+     zero heap leaks recorded across the 12-hour fuzz test[cite: 1].
+
+================================================================================
+📊 SYSTEM RESOURCE ALLOCATION BUDGET (8 MB RAM / 4 MB FLASH)
+================================================================================
+
+| Subsystem                   | RAM Limit     | Flash Limit | Key Source Files          |
+|-----------------------------|---------------|-------------|---------------------------|
+| LVGL v9 Core & Heap         | 2.0 MB        | ~350 KB     | lv_conf.h, lvgl/          |
+| System Chrome & Overlays    | ~250 KB       | ~80 KB      | status_bar.c, softkeys.c  |
+| Window Stack & Templates    | ~120 KB       | ~35 KB      | win_mgr.c, ui_templates.c |
+| Keypad Matrix & T9 Engine   | ~50 KB        | ~25 KB      | hal_input.c, t9_engine.c  |
+| 1-Bit Font Tables (RoData)  | 0 KB (XIP)    | ~15 KB      | fonts/veebha_fonts_*.c    |
+| Core Applications (15 apps) | ~1.5 MB (Dyn) | ~180 KB     | src/apps/app_*.c          |
+| FreeRTOS Kernel & Drivers   | ~100 KB       | ~45 KB      | FreeRTOSConfig.h, hal/    |
+| Headroom / Dynamic .vapp    | ~3.98 MB      | ~3.27 MB    | Dynamic allocation reserve|
+| TOTAL CONSTRAINTS           | 8.0 MB Max    | 4.0 MB Max  | Complete Binary: ~650 KB  |
+
+================================================================================
+🛠️ SYSTEM BOOT MODES & SPECIAL OPERATION STATES
+================================================================================
+
+1. Debug Log Mode:
+   - Bypasses the graphical UI stack entirely during boot[cite: 1].
+   - Spins up a background USB CDC / UART thread to stream real-time memory
+     statistics (vPortGetHeapStats), register dumps, and vAppLog() trace calls[cite: 1].
+
+2. Download & Recovery Mode:
+   - Bare-metal recovery stub entered via hardware key combination at power-on[cite: 1].
+   - Accepts, validates, and flashes incoming update binaries (veebhaos.bin)
+     directly to SPI Flash via USB or serial link[cite: 1].
+
+3. Super Battery Saving Mode:
+   - Clock-gates non-critical peripheral blocks (Camera, FM, VoC when idle)[cite: 1].
+   - Restricts display backlight to 10% via PMD current sink[cite: 1].
+   - Suspends background multitasking queues[cite: 1].
+   - Switches theme to high-contrast monochrome black (#000000) to cut display power[cite: 1].
+
+4. Bluetooth PANU Tethering Link:
+   - Bridges L2CAP / BNEP data channels into an lwIP network interface[cite: 1].
+   - Allows network sockets (HTTP client, SNTP time sync, Internet Radio) to
+     access the internet through a paired host phone or PC[cite: 1].
+
+================================================================================
