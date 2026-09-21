@@ -69,7 +69,10 @@ bool hal_display_init(void)
         }
     }
 
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0"); /* Nearest-neighbor for crisp pixel rendering */
+
     int scale = CONFIG_SIM_WINDOW_SCALE;
+    if (scale < 1) scale = 1;
     int win_w = CONFIG_DISP_HOR_RES * scale;
     int win_h = CONFIG_DISP_VER_RES * scale;
 

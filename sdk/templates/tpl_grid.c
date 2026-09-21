@@ -23,52 +23,95 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define MAX_GRID_CELLS 32
+
 typedef struct {
-    lv_obj_t *softkey_bar;
-    lv_obj_t *first_item;
+    lv_obj_t          *softkey_bar;
+    lv_obj_t          *first_item;
     veebha_view_type_t view_type;
     void (*on_select)(uint16_t index);
     void (*on_back)(void);
-} tpl_list_screen_data_t;
+    uint16_t           count;
+    uint8_t            columns;
+    lv_obj_t          *cells[MAX_GRID_CELLS];
+} tpl_grid_screen_data_t;
 
-static void on_screen_delete_cb(lv_event_t *e)
+static void on_grid_screen_delete_cb(lv_event_t *e)
 {
     lv_obj_t *scr = lv_event_get_target(e);
-    tpl_list_screen_data_t *data = (tpl_list_screen_data_t *)lv_obj_get_user_data(scr);
+    tpl_grid_screen_data_t *data = (tpl_grid_screen_data_t *)lv_obj_get_user_data(scr);
     if (data) {
         free(data);
         lv_obj_set_user_data(scr, NULL);
     }
 }
 
-static void on_item_clicked(lv_event_t *e)
+static void on_grid_item_clicked(lv_event_t *e)
 {
     lv_obj_t *btn = lv_event_get_target(e);
     uint16_t idx = (uint16_t)(uintptr_t)lv_event_get_user_data(e);
     lv_obj_t *scr = lv_obj_get_screen(btn);
 
     if (scr) {
-        tpl_list_screen_data_t *data = (tpl_list_screen_data_t *)lv_obj_get_user_data(scr);
+        tpl_grid_screen_data_t *data = (tpl_grid_screen_data_t *)lv_obj_get_user_data(scr);
         if (data && data->on_select) {
             data->on_select(idx);
         }
     }
 }
 
-static void on_list_key_cb(lv_event_t *e)
+static void on_grid_cell_key_cb(lv_event_t *e)
 {
     uint32_t key = lv_event_get_key(e);
-    lv_group_t *g = win_mgr_get_group();
-    if (!g) return;
+    uint16_t idx = (uint16_t)(uintptr_t)lv_event_get_user_data(e);
+    lv_obj_t *btn = lv_event_get_target(e);
+    lv_obj_t *scr = lv_obj_get_screen(btn);
+    tpl_grid_screen_data_t *data = (tpl_grid_screen_data_t *)lv_obj_get_user_data(scr);
 
-    if (key == LV_KEY_RIGHT || key == LV_KEY_DOWN) {
-        lv_group_focus_next(g);
-    } else if (key == LV_KEY_LEFT || key == LV_KEY_UP) {
-        lv_group_focus_prev(g);
+    if (!data || data->count == 0) return;
+
+    uint16_t count = data->count;
+    uint8_t cols = data->columns ? data->columns : 3;
+    uint16_t target = idx;
+
+    if (key == LV_KEY_RIGHT) {
+        /* Pressing Right on column 3 wraps to column 1 of next row */
+        target = (idx + 1) % count;
+        if (data->cells[target]) {
+            lv_group_focus_obj(data->cells[target]);
+        }
+    } else if (key == LV_KEY_LEFT) {
+        /* Pressing Left on column 1 wraps to column 3 of previous row */
+        target = (idx + count - 1) % count;
+        if (data->cells[target]) {
+            lv_group_focus_obj(data->cells[target]);
+        }
+    } else if (key == LV_KEY_DOWN) {
+        /* Pressing Down moves to same column in next row; wraps to top row */
+        if (idx + cols < count) {
+            target = idx + cols;
+        } else {
+            target = idx % cols;
+        }
+        if (data->cells[target]) {
+            lv_group_focus_obj(data->cells[target]);
+        }
+    } else if (key == LV_KEY_UP) {
+        /* Pressing Up moves to same column in previous row; wraps to bottom row */
+        if (idx >= cols) {
+            target = idx - cols;
+        } else {
+            uint16_t b = idx;
+            while (b + cols < count) b += cols;
+            target = b;
+        }
+        if (data->cells[target]) {
+            lv_group_focus_obj(data->cells[target]);
+        }
     }
 }
 
-void tpl_list_default_lsk(void)
+void tpl_grid_default_lsk(void)
 {
     lv_group_t *g = win_mgr_get_group();
     if (g) {
@@ -79,11 +122,11 @@ void tpl_list_default_lsk(void)
     }
 }
 
-void tpl_list_default_rsk(void)
+void tpl_grid_default_rsk(void)
 {
     win_mgr_entry_t *top = win_mgr_get_top();
     if (top && top->screen) {
-        tpl_list_screen_data_t *data = (tpl_list_screen_data_t *)lv_obj_get_user_data(top->screen);
+        tpl_grid_screen_data_t *data = (tpl_grid_screen_data_t *)lv_obj_get_user_data(top->screen);
         if (data && data->on_back) {
             data->on_back();
             return;
@@ -92,9 +135,11 @@ void tpl_list_default_rsk(void)
     win_mgr_pop();
 }
 
-lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
+lv_obj_t * tpl_grid_create(const tpl_grid_view_t *desc)
 {
     if (!desc) return NULL;
+
+    uint8_t cols = desc->columns ? desc->columns : 3;
 
     /* 1. Root Screen: Dark Charcoal #121212 */
     lv_obj_t *screen = lv_obj_create(NULL);
@@ -106,18 +151,21 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
     lv_obj_set_flex_align(screen, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     /* Allocate screen context */
-    tpl_list_screen_data_t *data = (tpl_list_screen_data_t *)malloc(sizeof(tpl_list_screen_data_t));
+    tpl_grid_screen_data_t *data = (tpl_grid_screen_data_t *)malloc(sizeof(tpl_grid_screen_data_t));
     if (data) {
         data->softkey_bar = NULL;
         data->first_item = NULL;
-        data->view_type = VEEBHA_VIEW_TYPE_LIST;
+        data->view_type = VEEBHA_VIEW_TYPE_GRID;
         data->on_select = desc->on_select;
         data->on_back = desc->on_back;
+        data->count = (desc->count < MAX_GRID_CELLS) ? desc->count : MAX_GRID_CELLS;
+        data->columns = cols;
+        for (int c = 0; c < MAX_GRID_CELLS; c++) data->cells[c] = NULL;
     }
     lv_obj_set_user_data(screen, data);
-    lv_obj_add_event_cb(screen, on_screen_delete_cb, LV_EVENT_DELETE, NULL);
+    lv_obj_add_event_cb(screen, on_grid_screen_delete_cb, LV_EVENT_DELETE, NULL);
 
-    /* 2. Zone A: Fixed 18px Top Status Bar / Header */
+    /* 2. Zone A: Fixed 18px Top Status Bar */
     lv_obj_t *status_bar = lv_obj_create(screen);
     lv_obj_set_size(status_bar, lv_pct(100), CONFIG_STATUS_BAR_HEIGHT);
     lv_obj_set_style_bg_color(status_bar, lv_color_hex(0x181A20), 0);
@@ -131,13 +179,11 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
     lv_obj_set_flex_flow(status_bar, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(status_bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    /* Header Title */
     lv_obj_t *title_lbl = lv_label_create(status_bar);
-    lv_label_set_text(title_lbl, desc->title ? desc->title : "VeebhaOS");
-    lv_obj_set_style_text_color(title_lbl, lv_color_hex(0x00E5FF), 0); /* Cyan accent */
+    lv_label_set_text(title_lbl, desc->title ? desc->title : "Menu");
+    lv_obj_set_style_text_color(title_lbl, lv_color_hex(0x00E5FF), 0);
     lv_obj_set_style_text_font(title_lbl, &lv_font_montserrat_12, 0);
 
-    /* Right Indicator: Time & Battery */
     lv_obj_t *right_tray = lv_obj_create(status_bar);
     lv_obj_set_size(right_tray, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
     lv_obj_set_style_bg_opa(right_tray, LV_OPA_TRANSP, 0);
@@ -158,7 +204,7 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
     lv_obj_set_style_text_color(bat_lbl, lv_color_hex(0x00E676), 0);
     lv_obj_set_style_text_font(bat_lbl, &lv_font_montserrat_12, 0);
 
-    /* 3. Zone B: Elastic 184px Content Viewport */
+    /* 3. Zone B: Elastic 184px Content Viewport with CSS Grid */
     lv_obj_t *content = lv_obj_create(screen);
     lv_obj_set_size(content, lv_pct(100), 0);
     lv_obj_set_flex_grow(content, 1);
@@ -166,80 +212,88 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
     lv_obj_set_style_bg_opa(content, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(content, 0, 0);
     lv_obj_set_style_radius(content, 0, 0);
-    lv_obj_set_style_pad_all(content, 2, 0);
-    lv_obj_set_style_pad_row(content, 2, 0);
-    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
-
-    /* Scroll setup: Center-locked snapping, hidden scrollbars */
-    lv_obj_set_scroll_snap_y(content, LV_SCROLL_SNAP_CENTER);
+    lv_obj_set_style_pad_all(content, 4, 0);
+    lv_obj_set_style_pad_row(content, 4, 0);
+    lv_obj_set_style_pad_column(content, 4, 0);
     lv_obj_set_scrollbar_mode(content, LV_SCROLLBAR_MODE_OFF);
 
-    /* Add Items */
+    /* 3 Equal Fractional Columns */
+    static const int32_t col_dsc[] = {
+        LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST
+    };
+    static const int32_t row_dsc[] = {
+        LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST
+    };
+    lv_obj_set_grid_dsc_array(content, col_dsc, row_dsc);
+
     lv_group_t *group = win_mgr_get_group();
+    uint16_t total = (desc->count < MAX_GRID_CELLS) ? desc->count : MAX_GRID_CELLS;
 
-    for (uint16_t i = 0; i < desc->count; i++) {
-        lv_obj_t *btn = lv_button_create(content);
+    for (uint16_t i = 0; i < total; i++) {
+        lv_obj_t *cell = lv_button_create(content);
         if (i == 0 && data) {
-            data->first_item = btn;
+            data->first_item = cell;
         }
-        lv_obj_set_user_data(btn, (void *)(uintptr_t)i);
-        lv_obj_set_size(btn, lv_pct(100), 28);
-        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lv_obj_set_style_pad_hor(btn, 6, 0);
-        lv_obj_set_style_pad_ver(btn, 0, 0);
-        lv_obj_set_style_radius(btn, 4, 0);
+        if (data) {
+            data->cells[i] = cell;
+        }
+        lv_obj_set_user_data(cell, (void *)(uintptr_t)i);
 
-        /* Default Unfocused Styling */
-        lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A1D24), 0);
-        lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
-        lv_obj_set_style_border_width(btn, 0, 0);
+        /* Place in Grid Matrix (Column c, Row r) */
+        uint8_t c = i % cols;
+        uint8_t r = i / cols;
+        lv_obj_set_grid_cell(cell, LV_GRID_ALIGN_STRETCH, c, 1,
+                                   LV_GRID_ALIGN_STRETCH, r, 1);
 
-        /* Focused Styling: High-contrast Cyan accent & blue highlight */
-        lv_obj_set_style_bg_color(btn, lv_color_hex(0x1A3555), LV_STATE_FOCUSED);
-        lv_obj_set_style_border_color(btn, lv_color_hex(0x00E5FF), LV_STATE_FOCUSED);
-        lv_obj_set_style_border_width(btn, 1, LV_STATE_FOCUSED);
+        /* Cell Styling: Squircle Card with Flex Column Layout */
+        lv_obj_set_flex_flow(cell, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(cell, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_all(cell, 2, 0);
+        lv_obj_set_style_radius(cell, 8, 0);
 
-        /* Optional Icon */
+        /* Default Styling */
+        lv_obj_set_style_bg_color(cell, lv_color_hex(0x1C2028), 0);
+        lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(cell, 0, 0);
+
+        /* Focused Styling: High-contrast Cyan border & accent background */
+        lv_obj_set_style_bg_color(cell, lv_color_hex(0x1A3555), LV_STATE_FOCUSED);
+        lv_obj_set_style_border_color(cell, lv_color_hex(0x00E5FF), LV_STATE_FOCUSED);
+        lv_obj_set_style_border_width(cell, 2, LV_STATE_FOCUSED);
+
+        /* Icon Label */
         if (desc->items[i].icon) {
-            lv_obj_t *icon_lbl = lv_label_create(btn);
+            lv_obj_t *icon_lbl = lv_label_create(cell);
             lv_label_set_text(icon_lbl, (const char *)desc->items[i].icon);
             lv_obj_set_style_text_color(icon_lbl, lv_color_hex(0x00E5FF), 0);
-            lv_obj_set_style_text_font(icon_lbl, &lv_font_montserrat_12, 0);
-            lv_obj_set_style_pad_right(icon_lbl, 4, 0);
+            lv_obj_set_style_text_font(icon_lbl, &lv_font_montserrat_16, 0);
         }
 
         /* Title Label */
-        lv_obj_t *lbl = lv_label_create(btn);
+        lv_obj_t *lbl = lv_label_create(cell);
         lv_label_set_text(lbl, desc->items[i].title ? desc->items[i].title : "");
         lv_obj_set_style_text_color(lbl, lv_color_hex(0xFFFFFF), 0);
         lv_obj_set_style_text_color(lbl, lv_color_hex(0x00E5FF), LV_STATE_FOCUSED);
         lv_obj_set_style_text_font(lbl, &lv_font_montserrat_12, 0);
-        lv_obj_set_flex_grow(lbl, 1);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
 
-        /* Optional Subtext */
-        if (desc->items[i].subtext) {
-            lv_obj_t *sub = lv_label_create(btn);
-            lv_label_set_text(sub, desc->items[i].subtext);
-            lv_obj_set_style_text_color(sub, lv_color_hex(0x8A8D93), 0);
-            lv_obj_set_style_text_font(sub, &lv_font_montserrat_12, 0);
-        }
+        /* 4-way Keypad Navigation Event */
+        lv_obj_add_event_cb(cell, on_grid_cell_key_cb, LV_EVENT_KEY, (void *)(uintptr_t)i);
 
-        /* Scroll on focus to ensure off-screen rows scroll into view automatically */
-        lv_obj_add_flag(btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
-        lv_obj_add_event_cb(btn, on_list_key_cb, LV_EVENT_KEY, NULL);
+        /* Click Event */
+        lv_obj_add_event_cb(cell, on_grid_item_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
 
-        /* Click Event Binding */
-        lv_obj_add_event_cb(btn, on_item_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
+        /* Scroll On Focus */
+        lv_obj_add_flag(cell, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 
         /* Register to Keypad Group */
         if (group) {
-            lv_group_add_obj(group, btn);
+            lv_group_add_obj(group, cell);
         }
     }
 
     /* 4. Zone C: Fixed 20px Bottom Softkey Bar */
-    const char *lsk = desc->lsk_label ? desc->lsk_label : "Select";
+    const char *lsk = desc->lsk_label ? desc->lsk_label : "OK";
     const char *rsk = desc->rsk_label ? desc->rsk_label : "Back";
     lv_obj_t *bar = softkey_bar_create(screen, lsk, rsk);
     if (data) {

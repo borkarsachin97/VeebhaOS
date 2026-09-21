@@ -41,6 +41,7 @@ set(SIM_SOURCES
     sdk/core/softkey_bar.c
     sdk/core/win_mgr.c
     sdk/templates/tpl_list.c
+    sdk/templates/tpl_grid.c
 )
 
 # Simulator Executable Target

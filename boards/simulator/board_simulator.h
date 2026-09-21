@@ -30,9 +30,9 @@ extern "C" {
 #define CONFIG_DISP_VER_RES 220
 #define CONFIG_COLOR_DEPTH  16
 
-/* Simulator Window Scaling (Integer scaling for high-DPI desktop clarity) */
+/* Simulator Window Scaling: 1x (176x220 actual size for crisp pixel-perfect display) */
 #ifndef CONFIG_SIM_WINDOW_SCALE
-#define CONFIG_SIM_WINDOW_SCALE 3
+#define CONFIG_SIM_WINDOW_SCALE 1
 #endif
 
 /* Simulator Environment Marker */

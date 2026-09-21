@@ -18,7 +18,8 @@ compile_commands.json
 
 # Simulator artifacts and crash dumps
 *.core
-core
+/core
+core.[0-9]*
 vgcore.*
 *.log
 

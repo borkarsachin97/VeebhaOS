@@ -31,12 +31,19 @@ extern "C" {
 #define WIN_MGR_MAX_DEPTH 8
 #define WIN_MGR_LABEL_MAX 16
 
+typedef enum {
+    VEEBHA_VIEW_TYPE_GENERIC = 0,
+    VEEBHA_VIEW_TYPE_LIST,
+    VEEBHA_VIEW_TYPE_GRID,
+} veebha_view_type_t;
+
 /**
  * Window Manager Stack Entry Descriptor
  */
 typedef struct {
     lv_obj_t           *screen;
     lv_obj_t           *focused_obj;
+    veebha_view_type_t  view_type;
     char                lsk_label[WIN_MGR_LABEL_MAX];
     softkey_callback_t  lsk_cb;
     char                rsk_label[WIN_MGR_LABEL_MAX];
@@ -89,6 +96,16 @@ uint8_t win_mgr_get_depth(void);
  * Retrieve the top entry on the stack.
  */
 win_mgr_entry_t * win_mgr_get_top(void);
+
+/**
+ * Retrieve the active screen's view type (List, Grid, Generic).
+ */
+veebha_view_type_t win_mgr_get_active_view_type(void);
+
+/**
+ * Set the view type of the active top screen.
+ */
+void win_mgr_set_active_view_type(veebha_view_type_t type);
 
 /**
  * Retrieve the global LVGL keypad input group.

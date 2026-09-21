@@ -19,11 +19,10 @@
 #include "drivers/hal_input.h"
 #include "boards/simulator/sim_keyboard_map.h"
 #include "veebha_softkeys.h"
+#include "veebha_win_mgr.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <string.h>
-
-#define EVENT_QUEUE_SIZE 32
 
 static lv_indev_t *s_indev = NULL;
 static veebha_key_callback_t s_user_cb = NULL;
@@ -36,21 +35,53 @@ static struct {
     bool long_press_fired;
 } s_key_state[VEEBHA_KEY_MAX];
 
-/* Current key and state for LVGL indev read_cb */
-static uint32_t s_last_lv_key = 0;
-static lv_indev_state_t s_last_lv_state = LV_INDEV_STATE_RELEASED;
+/* FIFO event queue so rapid presses and releases are not dropped */
+typedef struct {
+    uint32_t key;
+    lv_indev_state_t state;
+} indev_event_t;
+
+#define INDEV_QUEUE_SIZE 64
+static indev_event_t s_indev_queue[INDEV_QUEUE_SIZE];
+static uint16_t s_q_head = 0;
+static uint16_t s_q_tail = 0;
+
+static void indev_queue_push(uint32_t key, lv_indev_state_t state)
+{
+    uint16_t next = (s_q_head + 1) % INDEV_QUEUE_SIZE;
+    if (next != s_q_tail) {
+        s_indev_queue[s_q_head].key = key;
+        s_indev_queue[s_q_head].state = state;
+        s_q_head = next;
+    }
+}
+
+static bool indev_queue_pop(indev_event_t *ev)
+{
+    if (s_q_head == s_q_tail) return false;
+    *ev = s_indev_queue[s_q_tail];
+    s_q_tail = (s_q_tail + 1) % INDEV_QUEUE_SIZE;
+    return true;
+}
+
+static bool indev_queue_has_items(void)
+{
+    return s_q_head != s_q_tail;
+}
 
 static uint32_t veebha_key_to_lv_key(veebha_key_t key)
 {
+    veebha_view_type_t vt = win_mgr_get_active_view_type();
+
     switch (key) {
     case VEEBHA_KEY_UP:
-        return LV_KEY_UP;
+        return (vt == VEEBHA_VIEW_TYPE_GRID) ? LV_KEY_UP : LV_KEY_PREV;
     case VEEBHA_KEY_DOWN:
-        return LV_KEY_DOWN;
+        return (vt == VEEBHA_VIEW_TYPE_GRID) ? LV_KEY_DOWN : LV_KEY_NEXT;
     case VEEBHA_KEY_LEFT:
-        return LV_KEY_LEFT;
+        return (vt == VEEBHA_VIEW_TYPE_LIST) ? LV_KEY_PREV : LV_KEY_LEFT;
     case VEEBHA_KEY_RIGHT:
-        return LV_KEY_RIGHT;
+        return (vt == VEEBHA_VIEW_TYPE_LIST) ? LV_KEY_NEXT : LV_KEY_RIGHT;
     case VEEBHA_KEY_OK:
         return LV_KEY_ENTER;
     case VEEBHA_KEY_RSK:
@@ -89,8 +120,15 @@ static uint32_t veebha_key_to_lv_key(veebha_key_t key)
 static void sdl_keypad_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
 {
     (void)indev;
-    data->key = s_last_lv_key;
-    data->state = s_last_lv_state;
+    indev_event_t ev;
+    if (indev_queue_pop(&ev)) {
+        data->key = ev.key;
+        data->state = ev.state;
+        data->continue_reading = indev_queue_has_items();
+    } else {
+        data->state = LV_INDEV_STATE_RELEASED;
+        data->continue_reading = false;
+    }
 }
 
 void hal_input_set_callback(veebha_key_callback_t cb)
@@ -126,8 +164,7 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
             s_key_state[key].long_press_fired = false;
 
             if (lv_key != 0) {
-                s_last_lv_key = lv_key;
-                s_last_lv_state = LV_INDEV_STATE_PRESSED;
+                indev_queue_push(lv_key, LV_INDEV_STATE_PRESSED);
             }
 
             dispatch_key_event(key, VEEBHA_KEY_STATE_PRESSED, VEEBHA_PRESS_SHORT, now);
@@ -147,8 +184,8 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
 
             s_key_state[key].is_pressed = false;
 
-            if (lv_key != 0 && s_last_lv_key == lv_key) {
-                s_last_lv_state = LV_INDEV_STATE_RELEASED;
+            if (lv_key != 0) {
+                indev_queue_push(lv_key, LV_INDEV_STATE_RELEASED);
             }
 
             dispatch_key_event(key, VEEBHA_KEY_STATE_RELEASED, ptype, now);

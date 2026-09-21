@@ -62,6 +62,44 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc);
 void tpl_list_default_lsk(void);
 void tpl_list_default_rsk(void);
 
+/* ============================================================================
+ * Template 2: Grid View Declarations
+ * ============================================================================ */
+
+/**
+ * Grid Template Item Descriptor
+ */
+typedef struct {
+    const void *icon;       /* Icon symbol (e.g. LV_SYMBOL_CALL) or image pointer */
+    const char *title;      /* Item label underneath icon */
+    uint32_t    badge;      /* Optional notification badge count (0 = none) */
+} tpl_grid_item_t;
+
+/**
+ * Grid Template View Descriptor (Declarative Contract)
+ */
+typedef struct {
+    const char             *title;      /* Screen title in Status Bar / Header */
+    const tpl_grid_item_t  *items;      /* Array of grid items */
+    uint16_t                count;      /* Total number of items (e.g. 9 for 3x3) */
+    uint8_t                 columns;    /* Number of columns (default 3 if 0) */
+    void (*on_select)(uint16_t index);  /* Invoked on click / D-pad Center / LSK */
+    void (*on_back)(void);              /* Invoked on RSK (defaults to win_mgr_pop if NULL) */
+    const char             *lsk_label;  /* Left Softkey text (defaults to "OK") */
+    const char             *rsk_label;  /* Right Softkey text (defaults to "Back") */
+} tpl_grid_view_t;
+
+/**
+ * Instantiate a zero-coordinate Grid Screen according to the Template 2 contract.
+ *
+ * @param desc Pointer to declarative grid view descriptor.
+ * @return Root screen lv_obj_t pointer ready for win_mgr_push().
+ */
+lv_obj_t * tpl_grid_create(const tpl_grid_view_t *desc);
+
+void tpl_grid_default_lsk(void);
+void tpl_grid_default_rsk(void);
+
 #ifdef __cplusplus
 }
 #endif
