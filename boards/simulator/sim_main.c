@@ -232,11 +232,16 @@ int main(int argc, char *argv[])
     setup_demo_app();
 
     printf("[SIM] Simulator ready.\n");
-    printf("      Arrow Keys: 4-way D-pad navigation\n");
-    printf("      Enter / LSK (F1 / Left Alt): Select item\n");
-    printf("      RSK (F2 / Esc / Backspace): Back / Pop screen\n");
-    printf("      Keypad digits (0-9): T9 Multi-tap input\n");
-    printf("      Keypad '#': Cycle T9 input mode (Abc -> ABC -> 123 -> abc)\n");
+    printf("  Keypad Controls:\n");
+    printf("    D-Pad:             [Arrow Keys] (Up, Down, Left, Right)\n");
+    printf("    Center OK:         [Enter] / [Space] / [Keypad Enter]\n");
+    printf("    Left Softkey (LSK): [F1] / [Left Alt] / '['\n");
+    printf("    Right Softkey(RSK): [F2] / [Right Alt] / ']' / [Backspace] / [Delete]\n");
+    printf("    Call Key (Green):  [C]\n");
+    printf("    End/Power Key(Red):[E] / [End] / [Escape]\n");
+    printf("    Number Keys:       [0-9], [*], [#]\n");
+    printf("    T9 Mode Switch:    '#' Key (cycles Abc -> ABC -> 123 -> abc)\n");
+    printf("========================================================\n");
 
     /* 6. Main Interactive / Verification Loop */
     bool running = true;
@@ -376,8 +381,8 @@ int main(int argc, char *argv[])
                 test_inject_key(VEEBHA_KEY_NUM_3); /* '3' tap 2 -> 'e' */
             } else if (frame_count == 51) {
                 t9_engine_commit();
-                printf("[TEST] Step 6: Testing Backspace (RSK short press)...\n");
-                softkey_trigger_rsk(); /* Deletes last 'e', buffer becomes 'Ve' */
+                printf("[TEST] Step 6: Testing Backspace (RSK short press via HAL event)...\n");
+                test_inject_key(VEEBHA_KEY_RSK); /* Deletes last 'e' via HAL indev, buffer becomes 'Ve' */
             } else if (frame_count == 55) {
                 printf("[TEST] Step 7: Triggering LSK ('Done') to open Modal Dialog...\n");
                 softkey_trigger_lsk();
@@ -420,16 +425,16 @@ int main(int argc, char *argv[])
                 softkey_trigger_lsk();
             } else if (frame_count == 76) {
                 uint8_t depth = win_mgr_get_depth();
-                printf("[TEST] In Settings. Depth=%u (exp 2). Popping back...\n", depth);
+                printf("[TEST] In Settings. Depth=%u (exp 2). Testing END key (Power/Hangup) to reset to home...\n", depth);
                 if (depth != 2) {
                     fprintf(stderr, "[TEST ERROR] Expected depth 2 for Settings\n");
                     return 21;
                 }
-                softkey_trigger_rsk();
+                test_inject_key(VEEBHA_KEY_END);
             } else if (frame_count == 80) {
                 uint8_t depth = win_mgr_get_depth();
                 int idx = test_get_focused_index();
-                printf("[TEST] Back at Launcher. Depth=%u (exp 1), Restored Focused=%d (exp 5)\n", depth, idx);
+                printf("[TEST] Back at Launcher via END key. Depth=%u (exp 1), Restored Focused=%d (exp 5)\n", depth, idx);
                 if (depth != 1 || idx != 5) {
                     fprintf(stderr, "[TEST ERROR] Expected depth 1, focused 5\n");
                     return 22;

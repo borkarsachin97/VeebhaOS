@@ -38,12 +38,14 @@ veebha_key_t sim_keyboard_map_sdl_key(SDL_Keycode keycode)
     /* Softkeys */
     case SDLK_LALT:
     case SDLK_F1:
+    case SDLK_LEFTBRACKET:
         return VEEBHA_KEY_LSK;
 
     case SDLK_RALT:
     case SDLK_F2:
-    case SDLK_ESCAPE:
+    case SDLK_RIGHTBRACKET:
     case SDLK_BACKSPACE:
+    case SDLK_DELETE:
         return VEEBHA_KEY_RSK;
 
     /* Telephony & Power */
@@ -51,6 +53,9 @@ veebha_key_t sim_keyboard_map_sdl_key(SDL_Keycode keycode)
         return VEEBHA_KEY_CALL;
 
     case SDLK_e:
+    case SDLK_END:
+    case SDLK_ESCAPE:
+    case SDLK_POWER:
         return VEEBHA_KEY_END;
 
     /* Numeric Keypad Matrix */

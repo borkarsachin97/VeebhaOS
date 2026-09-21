@@ -40,6 +40,7 @@ typedef struct {
 } tpl_editor_screen_data_t;
 
 static tpl_editor_screen_data_t *s_active_editor = NULL;
+static void on_editor_rsk_long_press(void);
 
 static void update_editor_softkeys(tpl_editor_screen_data_t *data)
 {
@@ -52,7 +53,7 @@ static void update_editor_softkeys(tpl_editor_screen_data_t *data)
     const char *rsk = (len > 0) ? "Clear" : (data->rsk_label[0] ? data->rsk_label : "Back");
 
     softkey_set_actions(lsk, tpl_editor_default_lsk, rsk, tpl_editor_default_rsk);
-    softkey_set_rsk_long_action((len > 0) ? tpl_editor_default_rsk : NULL);
+    softkey_set_rsk_long_action((len > 0) ? on_editor_rsk_long_press : NULL);
 }
 
 static void on_t9_char_update(char c, bool is_replace)

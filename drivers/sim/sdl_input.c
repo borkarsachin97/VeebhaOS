@@ -20,6 +20,7 @@
 #include "boards/simulator/sim_keyboard_map.h"
 #include "veebha_softkeys.h"
 #include "veebha_win_mgr.h"
+#include "veebha_templates.h"
 #include "veebha_t9.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -86,9 +87,10 @@ static uint32_t veebha_key_to_lv_key(veebha_key_t key)
     case VEEBHA_KEY_OK:
         return LV_KEY_ENTER;
     case VEEBHA_KEY_RSK:
-        return LV_KEY_ESC;
     case VEEBHA_KEY_LSK:
-        return LV_KEY_HOME;
+    case VEEBHA_KEY_CALL:
+    case VEEBHA_KEY_END:
+        return 0;
     case VEEBHA_KEY_NUM_0:
         return '0';
     case VEEBHA_KEY_NUM_1:
@@ -181,6 +183,13 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
                 if (softkey_get_rsk_long_action() == NULL) {
                     softkey_trigger_rsk();
                 }
+            } else if (key == VEEBHA_KEY_END) {
+                if (tpl_dialog_is_active()) {
+                    tpl_dialog_close();
+                }
+                win_mgr_reset_to_home();
+            } else if (key == VEEBHA_KEY_CALL) {
+                printf("[HAL_INPUT] Call key pressed (Green Key)\n");
             }
         }
     } else {
