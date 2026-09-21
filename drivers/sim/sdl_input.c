@@ -20,6 +20,7 @@
 #include "boards/simulator/sim_keyboard_map.h"
 #include "veebha_softkeys.h"
 #include "veebha_win_mgr.h"
+#include "veebha_t9.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <string.h>
@@ -163,7 +164,12 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
             s_key_state[key].press_start_ms = now;
             s_key_state[key].long_press_fired = false;
 
-            if (lv_key != 0) {
+            veebha_view_type_t vt = win_mgr_get_active_view_type();
+            if (vt == VEEBHA_VIEW_TYPE_EDITOR &&
+                ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
+                 key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR)) {
+                t9_engine_handle_key(lv_key);
+            } else if (lv_key != 0) {
                 indev_queue_push(lv_key, LV_INDEV_STATE_PRESSED);
             }
 
@@ -172,7 +178,9 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
             if (key == VEEBHA_KEY_LSK) {
                 softkey_trigger_lsk();
             } else if (key == VEEBHA_KEY_RSK) {
-                softkey_trigger_rsk();
+                if (softkey_get_rsk_long_action() == NULL) {
+                    softkey_trigger_rsk();
+                }
             }
         }
     } else {
@@ -184,11 +192,24 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
 
             s_key_state[key].is_pressed = false;
 
-            if (lv_key != 0) {
+            veebha_view_type_t vt = win_mgr_get_active_view_type();
+            if (vt == VEEBHA_VIEW_TYPE_EDITOR &&
+                ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
+                 key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR)) {
+                /* Handled on press, do not push to indev */
+            } else if (lv_key != 0) {
                 indev_queue_push(lv_key, LV_INDEV_STATE_RELEASED);
             }
 
             dispatch_key_event(key, VEEBHA_KEY_STATE_RELEASED, ptype, now);
+
+            if (key == VEEBHA_KEY_RSK) {
+                if (softkey_get_rsk_long_action() != NULL) {
+                    if (!s_key_state[key].long_press_fired && duration < VEEBHA_LONG_PRESS_MS) {
+                        softkey_trigger_rsk();
+                    }
+                }
+            }
         }
     }
 }
@@ -226,6 +247,9 @@ bool hal_input_poll(void)
             if ((now - s_key_state[i].press_start_ms) >= VEEBHA_LONG_PRESS_MS) {
                 s_key_state[i].long_press_fired = true;
                 dispatch_key_event((veebha_key_t)i, VEEBHA_KEY_STATE_PRESSED, VEEBHA_PRESS_LONG, now);
+                if (i == VEEBHA_KEY_RSK) {
+                    softkey_trigger_rsk_long();
+                }
             }
         }
     }

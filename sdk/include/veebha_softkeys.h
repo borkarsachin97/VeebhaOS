@@ -49,6 +49,21 @@ void softkey_trigger_lsk(void);
 void softkey_trigger_rsk(void);
 
 /**
+ * Configure an optional long-press callback for the Right Softkey (e.g. Clear All).
+ */
+void softkey_set_rsk_long_action(softkey_callback_t rsk_long_cb);
+
+/**
+ * Trigger the registered Right Softkey long-press callback.
+ */
+void softkey_trigger_rsk_long(void);
+
+/**
+ * Retrieve the current Right Softkey long-press callback.
+ */
+softkey_callback_t softkey_get_rsk_long_action(void);
+
+/**
  * Create the persistent 20px fixed Softkey Bar within a parent container.
  *
  * @param parent Parent container (typically the root screen object).

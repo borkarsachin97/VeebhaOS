@@ -35,6 +35,7 @@ typedef enum {
     VEEBHA_VIEW_TYPE_GENERIC = 0,
     VEEBHA_VIEW_TYPE_LIST,
     VEEBHA_VIEW_TYPE_GRID,
+    VEEBHA_VIEW_TYPE_EDITOR,
 } veebha_view_type_t;
 
 /**

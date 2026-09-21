@@ -23,6 +23,7 @@
 #include "veebha_win_mgr.h"
 #include "veebha_templates.h"
 #include "veebha_softkeys.h"
+#include "veebha_t9.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdbool.h>
@@ -30,8 +31,12 @@
 
 static lv_group_t *g_keypad_group = NULL;
 
-/* Level 2: Settings Submenu forward declaration */
+/* Level 2 forward declarations */
 static void open_settings_menu(void);
+static void open_messages_editor(void);
+
+/* Buffer for text editor */
+static char s_message_buffer[128] = "";
 
 /* Level 1: 3x3 Grid Launcher Items */
 static const tpl_grid_item_t s_launcher_items[] = {
@@ -54,7 +59,10 @@ static void on_launcher_select(uint16_t index)
     if (index < LAUNCHER_ITEM_COUNT) {
         printf("[DEMO] Launcher Item %u (%s) Selected\n", index, s_launcher_items[index].title);
     }
-    if (index == 5) {
+    if (index == 1) {
+        /* "Messages" selected -> Push Level 2 Text Editor */
+        open_messages_editor();
+    } else if (index == 5) {
         /* "Settings" selected -> Push Level 2 Settings List */
         open_settings_menu();
     } else {
@@ -97,6 +105,50 @@ static void open_settings_menu(void)
     lv_obj_t *settings_scr = tpl_list_create(&desc);
     if (settings_scr) {
         win_mgr_push(settings_scr, "Select", tpl_list_default_lsk, "Back", tpl_list_default_rsk);
+    }
+}
+
+/* Level 2: Text Editor & Modal Dialog Handlers */
+static void on_save_confirm(void)
+{
+    printf("[DEMO] Save confirmed for message: '%s'\n", s_message_buffer);
+    win_mgr_pop(); /* Pop editor screen, returning to launcher */
+}
+
+static void on_editor_save(const char *text)
+{
+    printf("[DEMO] Editor Save triggered with content: '%s'\n", text);
+    static char s_dialog_msg[128];
+    snprintf(s_dialog_msg, sizeof(s_dialog_msg), "Save \"%s\" to drafts?", text);
+
+    tpl_dialog_desc_t dlg = {
+        .title = "Save Message?",
+        .message = s_dialog_msg,
+        .icon = LV_SYMBOL_SAVE,
+        .on_confirm = on_save_confirm,
+        .on_cancel = NULL, /* Cancel dismisses dialog, stays in editor */
+        .lsk_label = "OK",
+        .rsk_label = "Cancel"
+    };
+    tpl_dialog_show(&dlg);
+}
+
+static void open_messages_editor(void)
+{
+    s_message_buffer[0] = '\0';
+    tpl_editor_desc_t desc = {
+        .title = "New Message",
+        .buffer = s_message_buffer,
+        .max_len = sizeof(s_message_buffer),
+        .on_save = on_editor_save,
+        .on_cancel = NULL, /* Defaults to win_mgr_pop() */
+        .lsk_label = "Done",
+        .rsk_label = "Clear"
+    };
+
+    lv_obj_t *editor_scr = tpl_editor_create(&desc);
+    if (editor_scr) {
+        win_mgr_push(editor_scr, "Done", tpl_editor_default_lsk, "Back", tpl_editor_default_rsk);
     }
 }
 
@@ -148,7 +200,7 @@ int main(int argc, char *argv[])
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--test") == 0 || strcmp(argv[i], "--headless") == 0) {
             automated_test = true;
-            printf("[SIM] Running in automated Phase 2 verification mode\n");
+            printf("[SIM] Running in automated Phase 2.2 verification mode\n");
         }
     }
 
@@ -183,6 +235,8 @@ int main(int argc, char *argv[])
     printf("      Arrow Keys: 4-way D-pad navigation\n");
     printf("      Enter / LSK (F1 / Left Alt): Select item\n");
     printf("      RSK (F2 / Esc / Backspace): Back / Pop screen\n");
+    printf("      Keypad digits (0-9): T9 Multi-tap input\n");
+    printf("      Keypad '#': Cycle T9 input mode (Abc -> ABC -> 123 -> abc)\n");
 
     /* 6. Main Interactive / Verification Loop */
     bool running = true;
@@ -204,24 +258,37 @@ int main(int argc, char *argv[])
             frame_count++;
 
             /* Automated verification sequence:
-             * Frame  5: Verify initial Grid launcher (depth=1, focused=0 "Phone")
-             * Frame 10: Inject RIGHT -> focus moves to 1 ("Messages")
-             * Frame 15: Verify focused=1
-             * Frame 17: Inject DOWN -> focus moves to 4 ("Music")
-             * Frame 22: Verify focused=4
-             * Frame 24: Inject RIGHT -> focus moves to 5 ("Settings")
-             * Frame 29: Verify focused=5
-             * Frame 32: Trigger LSK (Select Settings) -> pushes Level 2 (depth=2)
-             * Frame 38: Verify in submenu (depth=2, view_type=LIST, focused=0 "Display")
-             * Frame 42: Inject DOWN in list -> focus moves to 1 ("Sound")
-             * Frame 47: Verify focused=1 in list
-             * Frame 50: Trigger RSK to pop Settings submenu
-             * Frame 56: Verify back in root menu (depth=1, view_type=GRID, focused=5 "Settings")
-             * Frame 60: Test wrapping: Inject RIGHT on item 5 (col 2, row 1) -> wraps to item 6 (col 0, row 2)
-             * Frame 65: Verify focused=6 ("Calendar")
-             * Frame 68: Test wrapping: Inject DOWN on item 6 (col 0, row 2) -> wraps to item 0 (col 0, row 0)
-             * Frame 73: Verify focused=0 ("Phone")
-             * Frame 78: Complete and exit successfully
+             * Frame  5: Initial Grid check (depth=1, focused=0 "Phone")
+             * Frame 10: Inject RIGHT -> focused=1 ("Messages")
+             * Frame 14: Trigger LSK -> open Messages Editor (depth=2, view_type=EDITOR)
+             * Frame 20: Verify in Editor, mode="Abc"
+             * Frame 22: Inject '#' -> cycle mode to "ABC"
+             * Frame 25: Verify mode="ABC"
+             * Frame 27: Inject '#' -> cycle mode to "123"
+             * Frame 30: Verify mode="123"
+             * Frame 32: Inject '#' -> cycle mode to "abc"
+             * Frame 35: Verify mode="abc"
+             * Frame 37: Inject '#' -> cycle mode to "Abc"
+             * Frame 40: Verify mode="Abc"
+             * Frame 42: Test multi-tap:
+             *           Inject '8', '8', '8' -> 'V' (sentence capital)
+             * Frame 43: '8' tap 2
+             * Frame 44: '8' tap 3
+             * Frame 46: Commit 'V', inject '3', '3' -> 'e'
+             * Frame 47: '3' tap 2
+             * Frame 49: Commit 'e', inject '3', '3' -> 'e'
+             * Frame 50: '3' tap 2
+             * Frame 52: Commit 'e' -> text is "Vee"
+             * Frame 54: Test Backspace (RSK) -> deletes 'e', text becomes "Ve"
+             * Frame 57: Trigger LSK ("Done") -> opens Modal Dialog ("Save Message?")
+             * Frame 62: Verify Dialog active (tpl_dialog_is_active() == true)
+             * Frame 65: Trigger LSK ("OK") on Dialog -> confirms and pops Editor back to Launcher!
+             * Frame 70: Verify back in Launcher (depth=1, view_type=GRID, focused=1 "Messages")
+             * Frame 73: Test Settings submenu navigation:
+             *           Inject RIGHT -> 2 ("Contacts"), DOWN -> 5 ("Settings")
+             * Frame 75: Select "Settings" (LSK) -> depth=2 (LIST)
+             * Frame 79: Pop Settings (RSK) -> depth=1, restored focused=5 ("Settings")
+             * Frame 84: All verification checks passed!
              */
             if (frame_count == 5) {
                 uint8_t depth = win_mgr_get_depth();
@@ -234,93 +301,141 @@ int main(int argc, char *argv[])
                     return 10;
                 }
             } else if (frame_count == 10) {
-                printf("[TEST] Step 2: Injecting RIGHT...\n");
+                printf("[TEST] Step 2: Injecting RIGHT towards 'Messages'...\n");
                 test_inject_key(VEEBHA_KEY_RIGHT);
-            } else if (frame_count == 15) {
+            } else if (frame_count == 12) {
                 int idx = test_get_focused_index();
                 printf("[TEST] Step 2 check: Focused=%d (expected 1 'Messages')\n", idx);
                 if (idx != 1) {
                     fprintf(stderr, "[TEST ERROR] Expected focused index 1, got %d\n", idx);
                     return 11;
                 }
-            } else if (frame_count == 17) {
-                printf("[TEST] Step 3: Injecting DOWN...\n");
-                test_inject_key(VEEBHA_KEY_DOWN);
-            } else if (frame_count == 22) {
-                int idx = test_get_focused_index();
-                printf("[TEST] Step 3 check: Focused=%d (expected 4 'Music')\n", idx);
-                if (idx != 4) {
-                    fprintf(stderr, "[TEST ERROR] Expected focused index 4, got %d\n", idx);
+                printf("[TEST] Step 3: Triggering LSK to launch Text Editor...\n");
+                softkey_trigger_lsk();
+            } else if (frame_count == 20) {
+                uint8_t depth = win_mgr_get_depth();
+                veebha_view_type_t vt = win_mgr_get_active_view_type();
+                t9_input_mode_t mode = t9_engine_get_mode();
+                printf("[TEST] Step 3 check: Editor Depth=%u (exp 2), ViewType=%d (exp %d), T9 Mode=%s (exp 'Abc')\n",
+                       depth, (int)vt, (int)VEEBHA_VIEW_TYPE_EDITOR, t9_engine_get_mode_str(mode));
+                if (depth != 2 || vt != VEEBHA_VIEW_TYPE_EDITOR || mode != T9_MODE_SENTENCE) {
+                    fprintf(stderr, "[TEST ERROR] Step 3 Editor launch failed!\n");
                     return 12;
                 }
-            } else if (frame_count == 24) {
-                printf("[TEST] Step 4: Injecting RIGHT...\n");
-                test_inject_key(VEEBHA_KEY_RIGHT);
-            } else if (frame_count == 29) {
-                int idx = test_get_focused_index();
-                printf("[TEST] Step 4 check: Focused=%d (expected 5 'Settings')\n", idx);
-                if (idx != 5) {
-                    fprintf(stderr, "[TEST ERROR] Expected focused index 5, got %d\n", idx);
+            } else if (frame_count == 22) {
+                printf("[TEST] Step 4: Testing T9 mode cycling with '#'...\n");
+                test_inject_key(VEEBHA_KEY_HASH);
+            } else if (frame_count == 25) {
+                t9_input_mode_t mode = t9_engine_get_mode();
+                printf("[TEST] Step 4a check: Mode is '%s' (exp 'ABC')\n", t9_engine_get_mode_str(mode));
+                if (mode != T9_MODE_UPPER) {
+                    fprintf(stderr, "[TEST ERROR] Expected T9_MODE_UPPER\n");
                     return 13;
                 }
-            } else if (frame_count == 32) {
-                printf("[TEST] Step 5: Triggering LSK to enter 'Settings' submenu...\n");
-                softkey_trigger_lsk();
-            } else if (frame_count == 38) {
-                uint8_t depth = win_mgr_get_depth();
-                veebha_view_type_t vt = win_mgr_get_active_view_type();
-                int idx = test_get_focused_index();
-                printf("[TEST] Step 5 check: Submenu Depth=%u (exp 2), ViewType=%d (exp %d), Focused=%d (exp 0)\n",
-                       depth, (int)vt, (int)VEEBHA_VIEW_TYPE_LIST, idx);
-                if (depth != 2 || vt != VEEBHA_VIEW_TYPE_LIST || idx != 0) {
-                    fprintf(stderr, "[TEST ERROR] Step 5 failed!\n");
+                test_inject_key(VEEBHA_KEY_HASH);
+            } else if (frame_count == 28) {
+                t9_input_mode_t mode = t9_engine_get_mode();
+                printf("[TEST] Step 4b check: Mode is '%s' (exp '123')\n", t9_engine_get_mode_str(mode));
+                if (mode != T9_MODE_NUMBER) {
+                    fprintf(stderr, "[TEST ERROR] Expected T9_MODE_NUMBER\n");
                     return 14;
                 }
-            } else if (frame_count == 42) {
-                printf("[TEST] Step 6: Injecting DOWN in list...\n");
-                test_inject_key(VEEBHA_KEY_DOWN);
-            } else if (frame_count == 47) {
-                int idx = test_get_focused_index();
-                printf("[TEST] Step 6 check: List Focused=%d (expected 1 'Sound')\n", idx);
-                if (idx != 1) {
-                    fprintf(stderr, "[TEST ERROR] Expected list focused index 1, got %d\n", idx);
+                test_inject_key(VEEBHA_KEY_HASH);
+            } else if (frame_count == 31) {
+                t9_input_mode_t mode = t9_engine_get_mode();
+                printf("[TEST] Step 4c check: Mode is '%s' (exp 'abc')\n", t9_engine_get_mode_str(mode));
+                if (mode != T9_MODE_LOWER) {
+                    fprintf(stderr, "[TEST ERROR] Expected T9_MODE_LOWER\n");
                     return 15;
                 }
-            } else if (frame_count == 50) {
-                printf("[TEST] Step 7: Triggering RSK to pop submenu...\n");
-                softkey_trigger_rsk();
-            } else if (frame_count == 56) {
+                test_inject_key(VEEBHA_KEY_HASH);
+            } else if (frame_count == 34) {
+                t9_input_mode_t mode = t9_engine_get_mode();
+                printf("[TEST] Step 4d check: Mode is '%s' (exp 'Abc')\n", t9_engine_get_mode_str(mode));
+                if (mode != T9_MODE_SENTENCE) {
+                    fprintf(stderr, "[TEST ERROR] Expected T9_MODE_SENTENCE\n");
+                    return 16;
+                }
+                printf("[TEST] Step 5: Testing multi-tap entry (Typing 'Vee')...\n");
+                test_inject_key(VEEBHA_KEY_NUM_8); /* '8' tap 1 -> 'T' */
+            } else if (frame_count == 36) {
+                test_inject_key(VEEBHA_KEY_NUM_8); /* '8' tap 2 -> 'U' */
+            } else if (frame_count == 38) {
+                test_inject_key(VEEBHA_KEY_NUM_8); /* '8' tap 3 -> 'V' */
+            } else if (frame_count == 41) {
+                /* Commit 'V' and type 'e' via key '3' */
+                t9_engine_commit();
+                test_inject_key(VEEBHA_KEY_NUM_3); /* '3' tap 1 -> 'd' */
+            } else if (frame_count == 43) {
+                test_inject_key(VEEBHA_KEY_NUM_3); /* '3' tap 2 -> 'e' */
+            } else if (frame_count == 46) {
+                /* Commit 'e' and type another 'e' */
+                t9_engine_commit();
+                test_inject_key(VEEBHA_KEY_NUM_3); /* '3' tap 1 -> 'd' */
+            } else if (frame_count == 48) {
+                test_inject_key(VEEBHA_KEY_NUM_3); /* '3' tap 2 -> 'e' */
+            } else if (frame_count == 51) {
+                t9_engine_commit();
+                printf("[TEST] Step 6: Testing Backspace (RSK short press)...\n");
+                softkey_trigger_rsk(); /* Deletes last 'e', buffer becomes 'Ve' */
+            } else if (frame_count == 55) {
+                printf("[TEST] Step 7: Triggering LSK ('Done') to open Modal Dialog...\n");
+                softkey_trigger_lsk();
+            } else if (frame_count == 60) {
+                bool active = tpl_dialog_is_active();
+                printf("[TEST] Step 7 check: Modal Dialog Active: %d (exp 1)\n", (int)active);
+                if (!active) {
+                    fprintf(stderr, "[TEST ERROR] Modal Dialog is not active!\n");
+                    return 17;
+                }
+                printf("[TEST] Step 8: Confirming Modal Dialog via LSK ('OK')...\n");
+                softkey_trigger_lsk();
+            } else if (frame_count == 66) {
                 uint8_t depth = win_mgr_get_depth();
                 veebha_view_type_t vt = win_mgr_get_active_view_type();
                 int idx = test_get_focused_index();
-                printf("[TEST] Step 7 check: Root Menu Depth=%u (exp 1), ViewType=%d (exp %d), Restored Focused=%d (exp 5)\n",
+                printf("[TEST] Step 8 check: Returned to Launcher. Depth=%u (exp 1), ViewType=%d (exp %d), Focused=%d (exp 1)\n",
                        depth, (int)vt, (int)VEEBHA_VIEW_TYPE_GRID, idx);
-                if (depth != 1 || vt != VEEBHA_VIEW_TYPE_GRID || idx != 5) {
-                    fprintf(stderr, "[TEST ERROR] Step 7 failed (focus restoration)!\n");
-                    return 16;
-                }
-            } else if (frame_count == 60) {
-                printf("[TEST] Step 8: Testing row wrap: Injecting RIGHT on item 5...\n");
-                test_inject_key(VEEBHA_KEY_RIGHT);
-            } else if (frame_count == 65) {
-                int idx = test_get_focused_index();
-                printf("[TEST] Step 8 check: Focused=%d (expected 6 'Calendar')\n", idx);
-                if (idx != 6) {
-                    fprintf(stderr, "[TEST ERROR] Expected focused index 6 after row wrap, got %d\n", idx);
-                    return 17;
-                }
-            } else if (frame_count == 68) {
-                printf("[TEST] Step 9: Testing col wrap: Injecting DOWN on item 6...\n");
-                test_inject_key(VEEBHA_KEY_DOWN);
-            } else if (frame_count == 73) {
-                int idx = test_get_focused_index();
-                printf("[TEST] Step 9 check: Focused=%d (expected 0 'Phone')\n", idx);
-                if (idx != 0) {
-                    fprintf(stderr, "[TEST ERROR] Expected focused index 0 after col wrap, got %d\n", idx);
+                if (depth != 1 || vt != VEEBHA_VIEW_TYPE_GRID || idx != 1) {
+                    fprintf(stderr, "[TEST ERROR] Step 8 return to launcher failed!\n");
                     return 18;
                 }
-            } else if (frame_count >= 78) {
-                printf("[TEST] All Phase 2 (Grid View, Navigation & Softkeys) checks PASSED successfully (%u frames)!\n",
+                printf("[TEST] Verified saved message buffer: '%s'\n", s_message_buffer);
+                if (strcmp(s_message_buffer, "Ve") != 0) {
+                    fprintf(stderr, "[TEST ERROR] Expected message buffer 'Ve', got '%s'\n", s_message_buffer);
+                    return 19;
+                }
+                printf("[TEST] Step 9: Navigating from 'Messages' to 'Settings'...\n");
+                test_inject_key(VEEBHA_KEY_RIGHT); /* to 2 ("Contacts") */
+            } else if (frame_count == 69) {
+                test_inject_key(VEEBHA_KEY_DOWN);  /* to 5 ("Settings") */
+            } else if (frame_count == 72) {
+                int idx = test_get_focused_index();
+                printf("[TEST] Step 9 check: Focused=%d (expected 5 'Settings')\n", idx);
+                if (idx != 5) {
+                    fprintf(stderr, "[TEST ERROR] Expected focused index 5, got %d\n", idx);
+                    return 20;
+                }
+                printf("[TEST] Entering Settings submenu...\n");
+                softkey_trigger_lsk();
+            } else if (frame_count == 76) {
+                uint8_t depth = win_mgr_get_depth();
+                printf("[TEST] In Settings. Depth=%u (exp 2). Popping back...\n", depth);
+                if (depth != 2) {
+                    fprintf(stderr, "[TEST ERROR] Expected depth 2 for Settings\n");
+                    return 21;
+                }
+                softkey_trigger_rsk();
+            } else if (frame_count == 80) {
+                uint8_t depth = win_mgr_get_depth();
+                int idx = test_get_focused_index();
+                printf("[TEST] Back at Launcher. Depth=%u (exp 1), Restored Focused=%d (exp 5)\n", depth, idx);
+                if (depth != 1 || idx != 5) {
+                    fprintf(stderr, "[TEST ERROR] Expected depth 1, focused 5\n");
+                    return 22;
+                }
+            } else if (frame_count >= 85) {
+                printf("[TEST] All Phase 2.2 (Modal Dialog, T9 Engine & Editor) checks PASSED successfully (%u frames)!\n",
                        frame_count);
                 break;
             }

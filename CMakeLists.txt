@@ -40,8 +40,11 @@ set(SIM_SOURCES
     drivers/sim/sdl_input.c
     sdk/core/softkey_bar.c
     sdk/core/win_mgr.c
+    sdk/input/t9_engine.c
     sdk/templates/tpl_list.c
     sdk/templates/tpl_grid.c
+    sdk/templates/tpl_dialog.c
+    sdk/templates/tpl_editor.c
 )
 
 # Simulator Executable Target

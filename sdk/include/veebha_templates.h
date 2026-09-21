@@ -100,6 +100,69 @@ lv_obj_t * tpl_grid_create(const tpl_grid_view_t *desc);
 void tpl_grid_default_lsk(void);
 void tpl_grid_default_rsk(void);
 
+/* ============================================================================
+ * Template 3: Modal Dialog Declarations
+ * ============================================================================ */
+
+/**
+ * Modal Dialog Descriptor
+ */
+typedef struct {
+    const char *title;                  /* Dialog title (e.g. "Notice", "Confirm") */
+    const char *message;                /* Dialog body message (auto-wrapping) */
+    const void *icon;                   /* Optional icon symbol or image */
+    void (*on_confirm)(void);           /* Callback on LSK / Enter */
+    void (*on_cancel)(void);            /* Callback on RSK / Esc */
+    const char *lsk_label;              /* Left softkey label (defaults to "OK") */
+    const char *rsk_label;              /* Right softkey label (defaults to "Cancel") */
+} tpl_dialog_desc_t;
+
+/**
+ * Display a modal dialog on top of the active view on lv_layer_top().
+ *
+ * @param desc Pointer to dialog descriptor.
+ * @return Root dialog overlay lv_obj_t pointer, or NULL on error.
+ */
+lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc);
+
+/**
+ * Close and destroy the active modal dialog, restoring softkeys and focus.
+ */
+void tpl_dialog_close(void);
+
+/**
+ * Check if a modal dialog is currently displayed.
+ */
+bool tpl_dialog_is_active(void);
+
+/* ============================================================================
+ * Template 4: Text Editor Declarations
+ * ============================================================================ */
+
+/**
+ * Text Editor Descriptor
+ */
+typedef struct {
+    const char *title;                  /* Screen title in header */
+    char       *buffer;                 /* Target string buffer */
+    uint16_t    max_len;                /* Maximum buffer capacity */
+    void (*on_save)(const char *text);  /* Callback on LSK ("Done") */
+    void (*on_cancel)(void);            /* Callback on RSK ("Cancel") when empty */
+    const char *lsk_label;              /* Left softkey label (defaults to "Done") */
+    const char *rsk_label;              /* Right softkey label (defaults to "Clear") */
+} tpl_editor_desc_t;
+
+/**
+ * Instantiate a zero-coordinate Text Editor according to the Template 4 contract.
+ *
+ * @param desc Pointer to editor descriptor.
+ * @return Root screen lv_obj_t pointer ready for win_mgr_push().
+ */
+lv_obj_t * tpl_editor_create(const tpl_editor_desc_t *desc);
+
+void tpl_editor_default_lsk(void);
+void tpl_editor_default_rsk(void);
+
 #ifdef __cplusplus
 }
 #endif

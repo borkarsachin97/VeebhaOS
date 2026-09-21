@@ -23,6 +23,7 @@
 
 static softkey_callback_t s_lsk_cb = NULL;
 static softkey_callback_t s_rsk_cb = NULL;
+static softkey_callback_t s_rsk_long_cb = NULL;
 
 static lv_obj_t *s_active_bar = NULL;
 static lv_obj_t *s_lsk_label = NULL;
@@ -47,6 +48,7 @@ void softkey_set_actions(const char *lsk_label, softkey_callback_t lsk_cb,
 {
     s_lsk_cb = lsk_cb;
     s_rsk_cb = rsk_cb;
+    s_rsk_long_cb = NULL;
 
     if (s_lsk_label) {
         lv_label_set_text(s_lsk_label, lsk_label ? lsk_label : "");
@@ -54,6 +56,16 @@ void softkey_set_actions(const char *lsk_label, softkey_callback_t lsk_cb,
     if (s_rsk_label) {
         lv_label_set_text(s_rsk_label, rsk_label ? rsk_label : "");
     }
+}
+
+void softkey_set_rsk_long_action(softkey_callback_t rsk_long_cb)
+{
+    s_rsk_long_cb = rsk_long_cb;
+}
+
+softkey_callback_t softkey_get_rsk_long_action(void)
+{
+    return s_rsk_long_cb;
 }
 
 void softkey_trigger_lsk(void)
@@ -67,6 +79,13 @@ void softkey_trigger_rsk(void)
 {
     if (s_rsk_cb) {
         s_rsk_cb();
+    }
+}
+
+void softkey_trigger_rsk_long(void)
+{
+    if (s_rsk_long_cb) {
+        s_rsk_long_cb();
     }
 }
 
