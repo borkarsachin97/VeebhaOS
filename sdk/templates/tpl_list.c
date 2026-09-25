@@ -39,11 +39,35 @@ typedef struct {
     void (*on_back)(void);
 } tpl_list_screen_data_t;
 
+/* ---------- Label reuse pool ---------- */
+#define LABEL_POOL_SIZE 12
+static lv_obj_t *label_pool[LABEL_POOL_SIZE];
+static unsigned label_pool_next = 0;
+static lv_obj_t *label_pool_acquire(lv_obj_t *parent) {
+    lv_obj_t *lbl = label_pool[label_pool_next];
+    if (!lbl) {
+        lbl = lv_label_create(parent);
+        label_pool[label_pool_next] = lbl;
+    } else {
+        lv_obj_set_parent(lbl, parent);
+        lv_obj_clear_flag(lbl, LV_OBJ_FLAG_HIDDEN);
+    }
+    label_pool_next = (label_pool_next + 1) % LABEL_POOL_SIZE;
+    return lbl;
+}
+
 static void on_screen_delete_cb(lv_event_t *e)
 {
     lv_obj_t *scr = lv_event_get_target(e);
     tpl_list_screen_data_t *data = (tpl_list_screen_data_t *)lv_obj_get_user_data(scr);
     if (data) {
+        // Reset label reuse pool to avoid leftover labels on reuse
+        for (unsigned i = 0; i < LABEL_POOL_SIZE; ++i) {
+            if (label_pool[i]) {
+                lv_obj_add_flag(label_pool[i], LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+        label_pool_next = 0;
         free(data);
         lv_obj_set_user_data(scr, NULL);
     }
@@ -56,6 +80,7 @@ static lv_style_t s_list_lbl_focused_style;
 static bool s_styles_initialized = false;
 static os_theme_id_t s_last_palette = (os_theme_id_t)0xFF;
 static bool s_last_light_mode = false;
+
 
 static void ensure_list_styles(void)
 {
@@ -268,7 +293,7 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
         lv_obj_set_user_data(btn, (void *)(uintptr_t)i);
 
         /* Title Label: Directly inside button */
-        lv_obj_t *lbl = lv_label_create(btn);
+        lv_obj_t *lbl = label_pool_acquire(btn);
         lv_obj_remove_style_all(lbl);
         lv_obj_add_style(lbl, &s_list_lbl_style, 0);
         lv_obj_add_style(lbl, &s_list_lbl_focused_style, LV_STATE_FOCUSED);

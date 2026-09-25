@@ -14,6 +14,7 @@
 #include "sdk/vfs/os_vfs.h"
 #include "sdk/storage/os_nvram.h"
 #include "sdk/include/veebha_i18n.h"
+#include "apps/i18n/cache.h"
 #include "veebha_templates.h"
 #include "veebha_win_mgr.h"
 #include "veebha_status_bar.h"

@@ -71,6 +71,8 @@ set(SIM_SOURCES
     apps/overlays/notif_panel.c
     apps/overlays/task_mgr.c
     apps/common/mock_telephony.c
+    apps/common/lazy_load.c
+    apps/screens/template_screen.c
     apps/home/app_idle.c
     apps/home/app_launcher.c
     apps/dialer/app_dialer.c

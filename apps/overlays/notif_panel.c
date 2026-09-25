@@ -497,7 +497,10 @@ static void rebuild_notif_deck(void)
 
     if (s_panel->active_page == NOTIF_PAGE_DECK && s_panel->group) {
         if (s_notif_count > 0 && s_panel->notif_cards[0]) {
+            /* Scroll back to top first so the first card is always in view */
+            lv_obj_scroll_to_y(s_panel->page_notif, 0, LV_ANIM_OFF);
             lv_group_focus_obj(s_panel->notif_cards[0]);
+            lv_obj_scroll_to_view(s_panel->notif_cards[0], LV_ANIM_OFF);
         }
     }
 

@@ -141,6 +141,7 @@ static void on_tools_item_select(uint16_t index)
 }
 
 #include "sdk/include/veebha_i18n.h"
+#include "apps/i18n/cache.h"
 
 void app_tools_init(void)
 {

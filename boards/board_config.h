@@ -91,6 +91,23 @@ extern "C" {
 #define CONFIG_VIEWPORT_HEIGHT (CONFIG_DISP_VER_RES - CONFIG_STATUS_BAR_HEIGHT - CONFIG_SOFTKEY_BAR_HEIGHT)
 #endif
 
+
+/* ============================================================
+ * Performance optimisation feature flags
+ * Set to 1 to enable, 0 to disable. Can also be overridden via -D on the compiler command line.
+ * ============================================================ */
+
+/* Pre-allocate a hidden list screen at boot and reuse it for Settings/Tools. */
+#ifndef CONFIG_USE_TEMPLATE_SCREEN
+#define CONFIG_USE_TEMPLATE_SCREEN 1
+#endif
+
+/* Build placeholder-then-real-list lazy-load support.
+ * Disabled by default; enable with -DCONFIG_ENABLE_LAZY_LOAD=1 at compile time. */
+#ifndef CONFIG_ENABLE_LAZY_LOAD
+#define CONFIG_ENABLE_LAZY_LOAD 0
+#endif
+
 #ifdef __cplusplus
 }
 #endif
