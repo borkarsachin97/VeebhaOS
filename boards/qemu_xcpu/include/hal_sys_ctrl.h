@@ -1,0 +1,133 @@
+/* Copyright (C) 2016 RDA Technologies Limited and/or its affiliates("RDA").
+ * All rights reserved.
+ *
+ * System Control (sys_ctrl) HAL interface for RDA8809
+ */
+
+#ifndef _HAL_SYS_CTRL_H_
+#define _HAL_SYS_CTRL_H_
+
+#include "cs_types.h"
+#include "sys_ctrl.h"
+
+// CPU / System Clock Frequencies
+typedef enum
+{
+    HAL_SYS_FREQ_32K  = 32768,
+    HAL_SYS_FREQ_26M  = 26000000,
+    HAL_SYS_FREQ_39M  = 39000000,
+    HAL_SYS_FREQ_52M  = 52000000,
+    HAL_SYS_FREQ_78M  = 78000000,
+    HAL_SYS_FREQ_89M  = 89000000,
+    HAL_SYS_FREQ_104M = 104000000,
+    HAL_SYS_FREQ_113M = 113000000,
+    HAL_SYS_FREQ_125M = 125000000,
+    HAL_SYS_FREQ_139M = 139000000,
+    HAL_SYS_FREQ_156M = 156000000,
+    HAL_SYS_FREQ_178M = 178000000,
+    HAL_SYS_FREQ_208M = 208000000,
+    HAL_SYS_FREQ_250M = 250000000,
+    HAL_SYS_FREQ_312M = 312000000
+} HAL_SYS_FREQ_T;
+
+// Peripheral Clocks (Clk_Per_Enable / Disable)
+typedef enum
+{
+    HAL_SYS_PER_UART    = SYS_CTRL_ENABLE_PER_UART,
+    HAL_SYS_PER_UART2   = SYS_CTRL_ENABLE_PER_UART2,
+    HAL_SYS_PER_I2C     = SYS_CTRL_ENABLE_PER_I2C,
+    HAL_SYS_PER_I2C2    = SYS_CTRL_ENABLE_PER_I2C2,
+    HAL_SYS_PER_I2C3    = SYS_CTRL_ENABLE_PER_I2C3,
+    HAL_SYS_PER_SDMMC   = SYS_CTRL_ENABLE_PER_SDMMC,
+    HAL_SYS_PER_SDMMC2  = SYS_CTRL_ENABLE_PER_SDMMC2,
+    HAL_SYS_PER_CAMERA  = SYS_CTRL_ENABLE_PER_CAMERA,
+    HAL_SYS_PER_SPI1    = SYS_CTRL_ENABLE_PERD_SPI1,
+    HAL_SYS_PER_SPI2    = SYS_CTRL_ENABLE_PERD_SPI2,
+    HAL_SYS_PER_SPI3    = SYS_CTRL_ENABLE_PERD_SPI3,
+    HAL_SYS_PER_USBC    = SYS_CTRL_ENABLE_PER_USBC,
+    HAL_SYS_PER_ALL     = 0x3FFF
+} HAL_SYS_PER_CLK_T;
+
+// System Bus Clocks (Clk_Sys_Enable / Disable)
+typedef enum
+{
+    HAL_SYS_CLK_DMA       = SYS_CTRL_ENABLE_SYS_DMA,
+    HAL_SYS_CLK_GOUDA     = SYS_CTRL_ENABLE_SYS_GOUDA,
+    HAL_SYS_CLK_EBC       = SYS_CTRL_ENABLE_SYS_EBC,
+    HAL_SYS_CLK_IFC       = (SYS_CTRL_ENABLE_SYS_IFC_CH0 | SYS_CTRL_ENABLE_SYS_IFC_CH1 | SYS_CTRL_ENABLE_SYS_IFC_CH2 | SYS_CTRL_ENABLE_SYS_IFC_CH3 | SYS_CTRL_ENABLE_SYS_IFC_CH4 | SYS_CTRL_ENABLE_SYS_IFC_CH5 | SYS_CTRL_ENABLE_SYS_IFC_CH6 | SYS_CTRL_ENABLE_SYS_IFC_CH7),
+    HAL_SYS_CLK_COM_REGS  = SYS_CTRL_ENABLE_SYS_COM_REGS,
+    HAL_SYS_CLK_DEBUG_UART= SYS_CTRL_ENABLE_SYS_DEBUG_UART,
+    HAL_SYS_CLK_MAILBOX   = SYS_CTRL_ENABLE_SYS_MAILBOX,
+    HAL_SYS_CLK_AIF       = SYS_CTRL_ENABLE_SYS_AIF,
+    HAL_SYS_CLK_PWM       = SYS_CTRL_ENABLE_SYSD_PWM,
+    HAL_SYS_CLK_ALL       = 0x7FFFFFFF
+} HAL_SYS_CLK_T;
+
+// System Reset Targets (Sys_Rst_Set / Clr)
+typedef enum
+{
+    HAL_SYS_RST_SYS_IRQ     = SYS_CTRL_SET_RST_SYS_IRQ,
+    HAL_SYS_RST_ABB         = SYS_CTRL_SET_RST_ABB,
+    HAL_SYS_RST_DMA         = SYS_CTRL_SET_RST_DMA,
+    HAL_SYS_RST_GOUDA       = SYS_CTRL_SET_RST_GOUDA,
+    HAL_SYS_RST_TIMER       = SYS_CTRL_SET_RST_TIMER,
+    HAL_SYS_RST_GPIO        = SYS_CTRL_SET_RST_GPIO,
+    HAL_SYS_RST_KEYPAD      = SYS_CTRL_SET_RST_KEYPAD,
+    HAL_SYS_RST_PWM         = SYS_CTRL_SET_RST_PWM,
+    HAL_SYS_RST_UART        = SYS_CTRL_SET_RST_UART,
+    HAL_SYS_RST_UART2       = SYS_CTRL_SET_RST_UART2,
+    HAL_SYS_RST_SPI1        = SYS_CTRL_SET_RST_SPI1,
+    HAL_SYS_RST_SPI2        = SYS_CTRL_SET_RST_SPI2,
+    HAL_SYS_RST_SPI3        = SYS_CTRL_SET_RST_SPI3,
+    HAL_SYS_RST_I2C         = SYS_CTRL_SET_RST_I2C,
+    HAL_SYS_RST_I2C2        = SYS_CTRL_SET_RST_I2C2,
+    HAL_SYS_RST_I2C3        = SYS_CTRL_SET_RST_I2C3,
+    HAL_SYS_RST_GPADC       = SYS_CTRL_SET_RST_GPADC,
+    HAL_SYS_RST_SDMMC       = SYS_CTRL_SET_RST_SDMMC,
+    HAL_SYS_RST_CAMERA      = SYS_CTRL_SET_RST_CAMERA,
+    HAL_SYS_RST_USBC        = SYS_CTRL_SET_RST_USBC,
+    HAL_SYS_RST_USBPHY      = SYS_CTRL_SET_RST_USBPHY,
+    HAL_SYS_RST_AIF         = SYS_CTRL_SET_RST_AIF
+} HAL_SYS_RST_T;
+
+// Reset Causes
+typedef enum
+{
+    HAL_SYS_RESET_CAUSE_POWER_ON    = 0,
+    HAL_SYS_RESET_CAUSE_WATCHDOG    = 1,
+    HAL_SYS_RESET_CAUSE_SOFT_RESET  = 2,
+    HAL_SYS_RESET_CAUSE_HOST_DEBUG  = 3,
+    HAL_SYS_RESET_CAUSE_ALARM       = 4,
+    HAL_SYS_RESET_CAUSE_UNKNOWN     = 5
+} HAL_SYS_RESET_CAUSE_T;
+
+// Public SysCtrl HAL Functions
+void hal_SysCtrlInit(void);
+
+void hal_SysProtectUnlock(void);
+void hal_SysProtectLock(void);
+
+BOOL hal_SysSetCpuFreq(HAL_SYS_FREQ_T freq);
+HAL_SYS_FREQ_T hal_SysGetCpuFreq(void);
+UINT32 hal_SysGetCpuFreqHz(void);
+
+void hal_SysClkPerEnable(UINT32 perMask);
+void hal_SysClkPerDisable(UINT32 perMask);
+
+void hal_SysClkSysEnable(UINT32 sysMask);
+void hal_SysClkSysDisable(UINT32 sysMask);
+
+void hal_SysResetPulse(UINT32 rstMask);
+void hal_SysResetAssert(UINT32 rstMask);
+void hal_SysResetRelease(UINT32 rstMask);
+
+void hal_SysSoftReset(void);
+
+HAL_SYS_RESET_CAUSE_T hal_SysGetResetCause(void);
+const char* hal_SysGetResetCauseString(void);
+UINT32 hal_SysGetRawResetCause(void);
+
+void hal_SysSetupOutClock(UINT8 divider);
+void hal_SysSetupAuxClock(BOOL enable);
+
+#endif // _HAL_SYS_CTRL_H_

@@ -19,6 +19,8 @@
 #include "veebha_templates.h"
 #include "veebha_win_mgr.h"
 #include "veebha_softkeys.h"
+#include "veebha_theme.h"
+#include "sdk/text/font_fallback.h"
 #include "boards/board_config.h"
 #include <stdlib.h>
 #include <string.h>
@@ -115,6 +117,7 @@ lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc)
     lv_obj_set_style_pad_all(overlay, 0, 0);
     lv_obj_set_style_radius(overlay, 0, 0);
     lv_obj_remove_flag(overlay, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(overlay, LV_OBJ_FLAG_SCROLL_ANIMATION);
 
     /* Flex center alignment to position card right in the middle */
     lv_obj_set_flex_flow(overlay, LV_FLEX_FLOW_COLUMN);
@@ -126,15 +129,17 @@ lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc)
 
     lv_obj_set_width(card, 150);
     lv_obj_set_height(card, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_color(card, lv_color_hex(0x1C2028), 0);
+    lv_obj_set_style_bg_color(card, theme_get()->card_color, 0);
     lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(card, lv_color_hex(0x00E5FF), 0);
+    lv_obj_set_style_border_color(card, theme_get()->accent, 0);
     lv_obj_set_style_border_width(card, 1, 0);
-    lv_obj_set_style_radius(card, 4, 0);
+    lv_obj_set_style_radius(card, 0, 0);
+    lv_obj_set_style_outline_width(card, 0, 0);
     lv_obj_set_style_pad_hor(card, 8, 0);
     lv_obj_set_style_pad_ver(card, 8, 0);
     lv_obj_set_style_pad_row(card, 4, 0);
     lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLL_ANIMATION);
 
     lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(card, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -143,7 +148,7 @@ lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc)
     if (desc->icon) {
         lv_obj_t *icon_lbl = lv_label_create(card);
         lv_label_set_text(icon_lbl, (const char *)desc->icon);
-        lv_obj_set_style_text_color(icon_lbl, lv_color_hex(0x00E5FF), 0);
+        lv_obj_set_style_text_color(icon_lbl, theme_get()->accent, 0);
         lv_obj_set_style_text_font(icon_lbl, &lv_font_montserrat_16, 0);
     }
 
@@ -151,8 +156,8 @@ lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc)
     if (desc->title) {
         lv_obj_t *title_lbl = lv_label_create(card);
         lv_label_set_text(title_lbl, desc->title);
-        lv_obj_set_style_text_color(title_lbl, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(title_lbl, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(title_lbl, theme_get()->text_primary, 0);
+        lv_obj_set_style_text_font(title_lbl, veebha_font_get_default(), 0);
         lv_obj_set_style_text_align(title_lbl, LV_TEXT_ALIGN_CENTER, 0);
     }
 
@@ -162,8 +167,8 @@ lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc)
         lv_obj_set_width(msg_lbl, 134); /* 150 - 2 * 8 pad */
         lv_label_set_long_mode(msg_lbl, LV_LABEL_LONG_WRAP);
         lv_label_set_text(msg_lbl, desc->message);
-        lv_obj_set_style_text_color(msg_lbl, lv_color_hex(0xC0C6D0), 0);
-        lv_obj_set_style_text_font(msg_lbl, &lv_font_montserrat_12, 0);
+        lv_obj_set_style_text_color(msg_lbl, theme_get()->text_muted, 0);
+        lv_obj_set_style_text_font(msg_lbl, veebha_font_get_default(), 0);
         lv_obj_set_style_text_align(msg_lbl, LV_TEXT_ALIGN_CENTER, 0);
     }
 
@@ -191,15 +196,27 @@ void tpl_dialog_close(void)
     softkey_set_actions(s_dialog->saved_lsk_label, s_dialog->saved_lsk_cb,
                         s_dialog->saved_rsk_label, s_dialog->saved_rsk_cb);
 
-    /* Restore previous keypad focus before deleting overlay so group doesn't refocus */
+    /* Restore previous keypad focus before deleting overlay */
     lv_group_t *group = win_mgr_get_group();
-    if (group && s_dialog->saved_focus && lv_obj_is_valid(s_dialog->saved_focus)) {
-        lv_group_focus_obj(s_dialog->saved_focus);
+    if (group) {
+        if (s_dialog->saved_focus && lv_obj_is_valid(s_dialog->saved_focus)) {
+            lv_group_focus_obj(s_dialog->saved_focus);
+        } else {
+            win_mgr_entry_t *top = win_mgr_get_top();
+            if (top && top->screen && lv_obj_is_valid(top->screen)) {
+                win_mgr_screen_hdr_t *hdr = (win_mgr_screen_hdr_t *)lv_obj_get_user_data(top->screen);
+                if (hdr && hdr->first_item && lv_obj_is_valid(hdr->first_item)) {
+                    lv_group_focus_obj(hdr->first_item);
+                } else {
+                    lv_group_focus_next(group);
+                }
+            }
+        }
     }
 
-    /* Delete overlay and its children on lv_layer_top */
+    /* Delete overlay and its children on lv_layer_top asynchronously */
     if (s_dialog->overlay && lv_obj_is_valid(s_dialog->overlay)) {
-        lv_obj_delete(s_dialog->overlay);
+        lv_obj_delete_async(s_dialog->overlay);
         s_dialog->overlay = NULL;
     }
 

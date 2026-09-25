@@ -1,0 +1,15 @@
+{
+  "name": "2048 Retro",
+  "author": "IndieDev",
+  "version": "1.0.0",
+  "type": "game",
+  "icon": "PLAY",
+  "description": "Slide matching number tiles to reach 2048!",
+  "heap_budget_kb": 16,
+  "app_id": 7,
+  "permissions": [
+    "display",
+    "keypad",
+    "audio"
+  ]
+}

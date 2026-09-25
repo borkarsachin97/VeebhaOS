@@ -53,6 +53,7 @@ veebha_key_t sim_keyboard_map_sdl_key(SDL_Keycode keycode)
         return VEEBHA_KEY_CALL;
 
     case SDLK_e:
+    case SDLK_p:
     case SDLK_END:
     case SDLK_ESCAPE:
     case SDLK_POWER:

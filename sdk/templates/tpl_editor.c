@@ -19,7 +19,10 @@
 #include "veebha_templates.h"
 #include "veebha_win_mgr.h"
 #include "veebha_softkeys.h"
+#include "veebha_status_bar.h"
 #include "veebha_t9.h"
+#include "veebha_theme.h"
+#include "sdk/text/font_fallback.h"
 #include "boards/board_config.h"
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +32,9 @@ typedef struct {
     lv_obj_t          *softkey_bar;
     lv_obj_t          *first_item; /* Points to textarea */
     veebha_view_type_t view_type;
+    char               title[WIN_MGR_LABEL_MAX];
+    os_fullscreen_mode_t fullscreen_mode;
+    bool               show_battery_hud;
     lv_obj_t          *textarea;
     lv_obj_t          *mode_lbl;
     char              *buffer;
@@ -161,10 +167,12 @@ lv_obj_t * tpl_editor_create(const tpl_editor_desc_t *desc)
 
     /* 1. Root Screen Container */
     lv_obj_t *screen = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x121212), 0);
+    lv_obj_set_size(screen, CONFIG_DISP_HOR_RES, CONFIG_DISP_VER_RES);
+    lv_obj_set_style_bg_color(screen, theme_get()->bg_color, 0);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
     lv_obj_set_style_pad_all(screen, 0, 0);
     lv_obj_set_style_border_width(screen, 0, 0);
+    lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_flex_flow(screen, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(screen, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
@@ -173,6 +181,8 @@ lv_obj_t * tpl_editor_create(const tpl_editor_desc_t *desc)
     if (!data) return NULL;
 
     data->view_type = VEEBHA_VIEW_TYPE_EDITOR;
+    strncpy(data->title, desc->title ? desc->title : "Editor", sizeof(data->title) - 1);
+    data->title[sizeof(data->title) - 1] = '\0';
     data->buffer = desc->buffer;
     data->max_len = desc->max_len;
     data->on_save = desc->on_save;
@@ -193,69 +203,68 @@ lv_obj_t * tpl_editor_create(const tpl_editor_desc_t *desc)
     lv_obj_set_user_data(screen, data);
     lv_obj_add_event_cb(screen, on_editor_delete_cb, LV_EVENT_DELETE, NULL);
 
-    /* 2. Zone A: Fixed 18px Top Status Bar */
-    lv_obj_t *status_bar = lv_obj_create(screen);
-    lv_obj_set_size(status_bar, lv_pct(100), CONFIG_STATUS_BAR_HEIGHT);
-    lv_obj_set_style_bg_color(status_bar, lv_color_hex(0x181A20), 0);
-    lv_obj_set_style_bg_opa(status_bar, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(status_bar, 0, 0);
-    lv_obj_set_style_radius(status_bar, 0, 0);
-    lv_obj_set_style_pad_hor(status_bar, 4, 0);
-    lv_obj_set_style_pad_ver(status_bar, 0, 0);
-    lv_obj_remove_flag(status_bar, LV_OBJ_FLAG_SCROLLABLE);
+    /* 2. Zone A: Fixed 18px Top Status Bar via unified status_bar_create */
+    status_bar_create(screen, desc->title ? desc->title : "Compose");
 
-    lv_obj_set_flex_flow(status_bar, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(status_bar, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    /* 3. Zone B: Elastic 184px Content Viewport with Header and lv_textarea */
+    lv_obj_t *content = lv_obj_create(screen);
+    lv_obj_set_size(content, lv_pct(100), 0);
+    lv_obj_set_flex_grow(content, 1);
+    lv_obj_set_style_bg_color(content, theme_get()->bg_color, 0);
+    lv_obj_set_style_bg_opa(content, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(content, 0, 0);
+    lv_obj_set_style_radius(content, 0, 0);
+    lv_obj_set_style_pad_all(content, 0, 0);
+    lv_obj_remove_flag(content, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
 
-    /* Title Label */
-    lv_obj_t *title_lbl = lv_label_create(status_bar);
-    lv_label_set_text(title_lbl, desc->title ? desc->title : "Compose");
-    lv_obj_set_style_text_color(title_lbl, lv_color_hex(0x00E5FF), 0);
-    lv_obj_set_style_text_font(title_lbl, &lv_font_montserrat_12, 0);
+    /* Editor Sub-Header: Mode Badge */
+    lv_obj_t *subhdr = lv_obj_create(content);
+    lv_obj_set_size(subhdr, lv_pct(100), 16);
+    lv_obj_set_style_bg_color(subhdr, theme_is_light_mode() ? lv_color_hex(0xE2E8F0) : lv_color_hex(0x181A20), 0);
+    lv_obj_set_style_bg_opa(subhdr, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(subhdr, 0, 0);
+    lv_obj_set_style_pad_hor(subhdr, 6, 0);
+    lv_obj_set_style_pad_ver(subhdr, 0, 0);
+    lv_obj_remove_flag(subhdr, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(subhdr, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(subhdr, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    /* Right Tray: Mode Indicator and Battery */
-    lv_obj_t *right_tray = lv_obj_create(status_bar);
-    lv_obj_set_size(right_tray, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(right_tray, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(right_tray, 0, 0);
-    lv_obj_set_style_pad_all(right_tray, 0, 0);
-    lv_obj_set_style_pad_column(right_tray, 4, 0);
-    lv_obj_remove_flag(right_tray, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_flex_flow(right_tray, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(right_tray, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    /* T9 Mode Indicator */
-    lv_obj_t *mode_lbl = lv_label_create(right_tray);
+    lv_obj_t *mode_lbl = lv_label_create(subhdr);
     data->mode_lbl = mode_lbl;
     lv_label_set_text(mode_lbl, "[Abc]");
     lv_obj_set_style_text_color(mode_lbl, lv_color_hex(0xFFD54F), 0);
-    lv_obj_set_style_text_font(mode_lbl, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_font(mode_lbl, veebha_font_get_default(), 0);
 
-    /* Battery Icon */
-    lv_obj_t *bat_lbl = lv_label_create(right_tray);
-    lv_label_set_text(bat_lbl, LV_SYMBOL_BATTERY_FULL);
-    lv_obj_set_style_text_color(bat_lbl, lv_color_hex(0x00E676), 0);
-    lv_obj_set_style_text_font(bat_lbl, &lv_font_montserrat_12, 0);
-
-    /* 3. Zone B: Elastic 184px Content Viewport with lv_textarea */
-    lv_obj_t *ta = lv_textarea_create(screen);
+    /* Textarea fills remainder of content viewport */
+    lv_obj_t *ta = lv_textarea_create(content);
     data->textarea = ta;
     data->first_item = ta;
 
     lv_obj_set_size(ta, lv_pct(100), 0);
     lv_obj_set_flex_grow(ta, 1);
-    lv_obj_set_style_bg_color(ta, lv_color_hex(0x14171E), 0);
+    lv_obj_set_style_bg_color(ta, theme_get()->card_color, 0);
     lv_obj_set_style_bg_opa(ta, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(ta, lv_color_hex(0x282C35), 0);
+    lv_obj_set_style_border_color(ta, theme_is_light_mode() ? lv_color_hex(0xCCCCCC) : lv_color_hex(0x282C35), 0);
     lv_obj_set_style_border_width(ta, 1, 0);
     lv_obj_set_style_radius(ta, 0, 0);
     lv_obj_set_style_pad_all(ta, 6, 0);
-    lv_obj_set_style_text_color(ta, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(ta, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(ta, theme_get()->text_primary, 0);
+    lv_obj_set_style_text_font(ta, veebha_font_get_default(), 0);
 
     /* Focused border accent */
-    lv_obj_set_style_border_color(ta, lv_color_hex(0x00E5FF), LV_STATE_FOCUSED);
+    lv_obj_set_style_border_color(ta, theme_get()->accent, LV_STATE_FOCUSED);
     lv_obj_set_style_border_width(ta, 1, LV_STATE_FOCUSED);
+    lv_obj_set_style_radius(ta, 0, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_width(ta, 0, LV_STATE_FOCUSED);
+    lv_obj_set_style_outline_pad(ta, 0, LV_STATE_FOCUSED);
+
+    lv_obj_set_style_border_color(ta, theme_get()->accent, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_border_width(ta, 1, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_radius(ta, 0, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_width(ta, 0, LV_STATE_FOCUS_KEY);
+    lv_obj_set_style_outline_pad(ta, 0, LV_STATE_FOCUS_KEY);
+    lv_obj_remove_flag(ta, LV_OBJ_FLAG_SCROLL_ANIMATION);
 
     /* Cursor */
     lv_textarea_set_cursor_click_pos(ta, true);

@@ -38,7 +38,19 @@ extern "C" {
 /* Simulator Environment Marker */
 #define CONFIG_SIMULATOR 1
 
-/* Mock Peripherals */
+/* Mock Peripherals & Capabilities */
+#define CONFIG_BOARD_SUPPORT_2G          1
+#define CONFIG_BOARD_SUPPORT_3G          1
+#define CONFIG_BOARD_SUPPORT_4G          1
+#define CONFIG_BOARD_SUPPORT_WIFI        1
+#define CONFIG_BOARD_SUPPORT_BLUETOOTH   1
+#define CONFIG_BOARD_SUPPORT_FM_RADIO    1
+#define CONFIG_BOARD_SUPPORT_SDCARD      1
+#define CONFIG_BOARD_SUPPORT_CAMERA      1
+#define CONFIG_BOARD_SUPPORT_TORCH       1
+#define CONFIG_BOARD_SUPPORT_AUDIO_JACK  1
+#define CONFIG_BOARD_SUPPORT_VIBRATOR    1
+
 #define CONFIG_HAS_BATTERY   1
 #define CONFIG_HAS_RTC       1
 #define CONFIG_HAS_BLUETOOTH 1

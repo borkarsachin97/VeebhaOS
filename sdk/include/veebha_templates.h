@@ -46,6 +46,7 @@ typedef struct {
     void (*on_back)(void);              /* Invoked on RSK (defaults to win_mgr_pop if NULL) */
     const char             *lsk_label;  /* Left Softkey text (defaults to "Select") */
     const char             *rsk_label;  /* Right Softkey text (defaults to "Back") */
+    bool                    keep_alive; /* If true, screen is hidden on pop instead of destroyed */
 } tpl_list_view_t;
 
 /**
@@ -162,6 +163,91 @@ lv_obj_t * tpl_editor_create(const tpl_editor_desc_t *desc);
 
 void tpl_editor_default_lsk(void);
 void tpl_editor_default_rsk(void);
+
+/* ============================================================================
+ * Template 5: Media & Dashboard Declarations
+ * ============================================================================ */
+
+/**
+ * Media & Dashboard View Descriptor
+ */
+typedef struct {
+    const char *title;                  /* Screen title in header (e.g. "Music", "Call") */
+    const void *art_src;                /* Image pointer or symbol icon (optional) */
+    const char *headline;               /* Primary bold text (Track title or Caller name) */
+    const char *subline;                /* Secondary text (Artist name or Call status) */
+    uint8_t     progress_percent;       /* Initial progress percent (0 - 100) */
+    bool        hide_progress;          /* Hide progress bar (e.g. for phone call screens) */
+    bool        is_playing;             /* Initial playback / active state */
+    void (*on_play_toggle)(void);       /* Callback on Center OK or LSK */
+    void (*on_seek)(int8_t step);       /* Callback on D-pad Left (-step) or Right (+step) */
+    void (*on_back)(void);              /* Callback on RSK */
+    const char *lsk_label;              /* Left softkey label (defaults to "Pause" / "Play") */
+    const char *rsk_label;              /* Right softkey label (defaults to "Back") */
+} tpl_media_view_t;
+
+/**
+ * Instantiate a zero-coordinate Media & Dashboard screen according to the Template 5 contract.
+ *
+ * @param desc Pointer to media view descriptor.
+ * @return Root screen lv_obj_t pointer ready for win_mgr_push().
+ */
+lv_obj_t * tpl_media_create(const tpl_media_view_t *desc);
+
+/**
+ * Update the progress bar percentage (0-100).
+ */
+void tpl_media_set_progress(uint8_t percent);
+
+/**
+ * Retrieve the current progress percentage.
+ */
+uint8_t tpl_media_get_progress(void);
+
+/**
+ * Update playback state flag and refresh LSK softkey label.
+ */
+void tpl_media_set_playing(bool is_playing);
+
+/**
+ * Check whether media is currently marked as playing.
+ */
+bool tpl_media_is_playing(void);
+
+/**
+ * Check whether an active media session exists.
+ */
+bool tpl_media_has_active_session(void);
+
+/**
+ * Get current media headline/title string.
+ */
+const char * tpl_media_get_headline(void);
+
+/**
+ * Get current media subline/artist string.
+ */
+const char * tpl_media_get_subline(void);
+
+/**
+ * Update headline and subline strings dynamically.
+ */
+void tpl_media_set_metadata(const char *headline, const char *subline);
+
+/**
+ * Handle seek step (-step or +step) from input driver.
+ */
+void tpl_media_handle_seek(int8_t step);
+
+/**
+ * Handle play/pause toggle from input driver or LSK.
+ */
+void tpl_media_handle_toggle(void);
+
+void tpl_media_default_lsk(void);
+void tpl_media_default_rsk(void);
+void tpl_media_register_callbacks(void (*on_play_toggle)(void), void (*on_seek)(int8_t step));
+void tpl_media_clear_session(void);
 
 #ifdef __cplusplus
 }

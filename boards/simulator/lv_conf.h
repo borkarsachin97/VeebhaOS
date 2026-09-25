@@ -88,14 +88,19 @@
    FONT USAGE
  *====================*/
 
-#define LV_FONT_MONTSERRAT_10 0
+#define LV_FONT_MONTSERRAT_10 1
 #define LV_FONT_MONTSERRAT_12 1
 #define LV_FONT_MONTSERRAT_14 1
 #define LV_FONT_MONTSERRAT_16 1
 #define LV_FONT_MONTSERRAT_18 0
-#define LV_FONT_MONTSERRAT_24 0
+#define LV_FONT_MONTSERRAT_20 1
+#define LV_FONT_MONTSERRAT_24 1
 
-#define LV_FONT_DEFAULT &lv_font_montserrat_14
+#if !defined(__ASSEMBLER__) && !defined(__ASSEMBLY__)
+struct _lv_font_t;
+extern const struct _lv_font_t veebha_font_latin_cyrillic_14;
+#define LV_FONT_DEFAULT ((const struct _lv_font_t *)&veebha_font_latin_cyrillic_14)
+#endif
 
 /*====================
    WIDGETS
@@ -129,5 +134,13 @@
 
 /* Others */
 #define LV_USE_SNAPSHOT   1
+
+/* Themes */
+#define LV_USE_THEME_DEFAULT 1
+#if LV_USE_THEME_DEFAULT
+    #define LV_THEME_DEFAULT_DARK 1
+    #define LV_THEME_DEFAULT_GROW 0
+    #define LV_THEME_DEFAULT_TRANSITION_TIME 0
+#endif
 
 #endif /* LV_CONF_H */

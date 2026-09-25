@@ -29,18 +29,53 @@ extern "C" {
  * If no board target is defined via compiler flags (-D...),
  * default to the SDL2 desktop simulator.
  */
-#if !defined(CONFIG_BOARD_SIMULATOR) && !defined(CONFIG_BOARD_PHOENIX) && !defined(CONFIG_BOARD_MUMBA)
+#if !defined(CONFIG_BOARD_SIMULATOR) && !defined(CONFIG_BOARD_OBTEL_B10) && !defined(CONFIG_BOARD_QEMU_XCPU)
 #define CONFIG_BOARD_SIMULATOR 1
 #endif
 
 #if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
 #include "simulator/board_simulator.h"
-#elif defined(CONFIG_BOARD_PHOENIX) && CONFIG_BOARD_PHOENIX
-#include "phoenix/board_phoenix.h"
-#elif defined(CONFIG_BOARD_MUMBA) && CONFIG_BOARD_MUMBA
-#include "mumba/board_mumba.h"
+#elif defined(CONFIG_BOARD_OBTEL_B10) && CONFIG_BOARD_OBTEL_B10
+#include "obtel_b10/board_obtel_b10.h"
+#elif defined(CONFIG_BOARD_QEMU_XCPU) && CONFIG_BOARD_QEMU_XCPU
+#include "qemu_xcpu/board_qemu_xcpu.h"
 #else
 #error "No valid board configuration selected in board_config.h!"
+#endif
+
+/* Fallback hardware capability flags */
+#ifndef CONFIG_BOARD_SUPPORT_2G
+#define CONFIG_BOARD_SUPPORT_2G 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_3G
+#define CONFIG_BOARD_SUPPORT_3G 0
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_4G
+#define CONFIG_BOARD_SUPPORT_4G 0
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_WIFI
+#define CONFIG_BOARD_SUPPORT_WIFI 0
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_BLUETOOTH
+#define CONFIG_BOARD_SUPPORT_BLUETOOTH 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_FM_RADIO
+#define CONFIG_BOARD_SUPPORT_FM_RADIO 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_SDCARD
+#define CONFIG_BOARD_SUPPORT_SDCARD 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_CAMERA
+#define CONFIG_BOARD_SUPPORT_CAMERA 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_TORCH
+#define CONFIG_BOARD_SUPPORT_TORCH 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_AUDIO_JACK
+#define CONFIG_BOARD_SUPPORT_AUDIO_JACK 1
+#endif
+#ifndef CONFIG_BOARD_SUPPORT_VIBRATOR
+#define CONFIG_BOARD_SUPPORT_VIBRATOR 1
 #endif
 
 /* System viewport partitioning constants */

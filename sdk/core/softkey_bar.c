@@ -17,6 +17,8 @@
  */
 
 #include "veebha_softkeys.h"
+#include "veebha_theme.h"
+#include "sdk/text/font_fallback.h"
 #include "boards/board_config.h"
 #include <stdio.h>
 #include <string.h>
@@ -93,9 +95,9 @@ lv_obj_t * softkey_bar_create(lv_obj_t *parent, const char *lsk_label, const cha
 {
     lv_obj_t *bar = lv_obj_create(parent);
     lv_obj_set_size(bar, lv_pct(100), CONFIG_SOFTKEY_BAR_HEIGHT);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x181A20), 0);
+    lv_obj_set_style_bg_color(bar, theme_is_light_mode() ? lv_color_hex(0xDCDCDC) : lv_color_hex(0x181A20), 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(bar, lv_color_hex(0x282C35), 0);
+    lv_obj_set_style_border_color(bar, theme_is_light_mode() ? lv_color_hex(0xBBBBBB) : lv_color_hex(0x282C35), 0);
     lv_obj_set_style_border_side(bar, LV_BORDER_SIDE_TOP, 0);
     lv_obj_set_style_border_width(bar, 1, 0);
     lv_obj_set_style_radius(bar, 0, 0);
@@ -110,14 +112,14 @@ lv_obj_t * softkey_bar_create(lv_obj_t *parent, const char *lsk_label, const cha
     /* Child 0: Left Softkey */
     lv_obj_t *lsk = lv_label_create(bar);
     lv_label_set_text(lsk, lsk_label ? lsk_label : "");
-    lv_obj_set_style_text_color(lsk, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(lsk, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(lsk, theme_get()->text_primary, 0);
+    lv_obj_set_style_text_font(lsk, veebha_font_get_default(), 0);
 
     /* Child 1: Right Softkey */
     lv_obj_t *rsk = lv_label_create(bar);
     lv_label_set_text(rsk, rsk_label ? rsk_label : "");
-    lv_obj_set_style_text_color(rsk, lv_color_hex(0xFFFFFF), 0);
-    lv_obj_set_style_text_font(rsk, &lv_font_montserrat_12, 0);
+    lv_obj_set_style_text_color(rsk, theme_get()->text_primary, 0);
+    lv_obj_set_style_text_font(rsk, veebha_font_get_default(), 0);
 
     softkey_bar_set_active_widget(bar);
     return bar;

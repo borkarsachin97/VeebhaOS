@@ -1,32 +1,33 @@
 # VeebhaOS Root Makefile Helper
+# SPDX-License-Identifier: MIT
 
 BUILD_DIR ?= build
 CMAKE ?= cmake
-CTEST ?= ctest
+BOARD ?= simulator
 
-.PHONY: all build sim clean test asan
+.PHONY: all build sim test asan clean
 
 all: build
 
-build:
-	@$(CMAKE) -B $(BUILD_DIR) -S .
+$(BUILD_DIR)/CMakeCache.txt: CMakeLists.txt
+	@$(CMAKE) -B $(BUILD_DIR) -S . -DBOARD=$(BOARD)
+
+build: $(BUILD_DIR)/CMakeCache.txt
 	@$(CMAKE) --build $(BUILD_DIR) -j$$(nproc)
 
 sim: build
 	@echo "[SIM] Launching VeebhaOS Desktop Simulator..."
-	@./$(BUILD_DIR)/veebhaos_sim
+	@./$(BUILD_DIR)/veebha_os
 
-test:
-	@$(CMAKE) -B $(BUILD_DIR) -S .
-	@$(CMAKE) --build $(BUILD_DIR) -j$$(nproc)
+test: build
 	@echo "[TEST] Running automated test verification..."
-	@./$(BUILD_DIR)/veebhaos_sim --test
+	@./$(BUILD_DIR)/veebha_os --test
 
 asan:
-	@$(CMAKE) -B $(BUILD_DIR) -S . -DENABLE_ASAN=ON
+	@$(CMAKE) -B $(BUILD_DIR) -S . -DBOARD=$(BOARD) -DENABLE_ASAN=ON
 	@$(CMAKE) --build $(BUILD_DIR) -j$$(nproc)
 	@echo "[ASAN] Running with AddressSanitizer..."
-	@./$(BUILD_DIR)/veebhaos_sim --test
+	@./$(BUILD_DIR)/veebha_os --test
 
 clean:
 	@echo "[CLEAN] Removing build directory..."

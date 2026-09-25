@@ -21,7 +21,21 @@
 #include "veebha_softkeys.h"
 #include "veebha_win_mgr.h"
 #include "veebha_templates.h"
+#include "veebha_overlays.h"
 #include "veebha_t9.h"
+#include "veebha_event.h"
+#include "veebha_irq.h"
+#include "apps/dialer/app_dialer.h"
+#include "apps/music/app_music.h"
+#include "apps/tools/app_calc.h"
+#include "apps/tools/app_stopwatch.h"
+#include "apps/overlays/screen_saver.h"
+#include "apps/overlays/usb_select.h"
+#include "apps/settings/app_settings.h"
+#include "apps/telephony/app_incall.h"
+#include "apps/home/app_idle.h"
+#include "veebha_connectivity.h"
+#include "veebha_live_pill.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <string.h>
@@ -73,18 +87,75 @@ static bool indev_queue_has_items(void)
 
 static uint32_t veebha_key_to_lv_key(veebha_key_t key)
 {
+    /* Prioritize active overlays on lv_layer_top */
+    if (task_mgr_is_active()) {
+        switch (key) {
+        case VEEBHA_KEY_UP:   return LV_KEY_PREV;
+        case VEEBHA_KEY_DOWN: return LV_KEY_NEXT;
+        case VEEBHA_KEY_OK:   return LV_KEY_ENTER;
+        default: break;
+        }
+    }
+
+    if (notif_panel_is_active()) {
+        return 0;
+    }
+
+    if (app_stopwatch_is_active()) {
+        switch (key) {
+        case VEEBHA_KEY_UP:
+        case VEEBHA_KEY_DOWN:
+        case VEEBHA_KEY_LEFT:
+        case VEEBHA_KEY_RIGHT:
+        case VEEBHA_KEY_OK:
+        case VEEBHA_KEY_HASH:
+        case VEEBHA_KEY_STAR:
+            return 0;
+        default:
+            if (key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) return 0;
+            break;
+        }
+    }
+
+    if (app_incall_is_foreground()) {
+        switch (key) {
+        case VEEBHA_KEY_UP:
+        case VEEBHA_KEY_DOWN:
+        case VEEBHA_KEY_LEFT:
+        case VEEBHA_KEY_RIGHT:
+        case VEEBHA_KEY_OK:
+        case VEEBHA_KEY_HASH:
+        case VEEBHA_KEY_STAR:
+            return 0;
+        default:
+            if (key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) return 0;
+            break;
+        }
+    }
+
     veebha_view_type_t vt = win_mgr_get_active_view_type();
+    lv_group_t *cur_grp = win_mgr_get_group();
+    bool is_editing = cur_grp ? lv_group_get_editing(cur_grp) : false;
 
     switch (key) {
     case VEEBHA_KEY_UP:
-        return (vt == VEEBHA_VIEW_TYPE_GRID) ? LV_KEY_UP : LV_KEY_PREV;
+        if (vt == VEEBHA_VIEW_TYPE_DIALER || vt == VEEBHA_VIEW_TYPE_MEDIA || vt == VEEBHA_VIEW_TYPE_CALC) return 0;
+        if (is_editing) return LV_KEY_UP;
+        return (vt == VEEBHA_VIEW_TYPE_GRID || vt == VEEBHA_VIEW_TYPE_CALENDAR) ? LV_KEY_UP : LV_KEY_PREV;
     case VEEBHA_KEY_DOWN:
-        return (vt == VEEBHA_VIEW_TYPE_GRID) ? LV_KEY_DOWN : LV_KEY_NEXT;
+        if (vt == VEEBHA_VIEW_TYPE_DIALER || vt == VEEBHA_VIEW_TYPE_MEDIA || vt == VEEBHA_VIEW_TYPE_CALC) return 0;
+        if (is_editing) return LV_KEY_DOWN;
+        return (vt == VEEBHA_VIEW_TYPE_GRID || vt == VEEBHA_VIEW_TYPE_CALENDAR) ? LV_KEY_DOWN : LV_KEY_NEXT;
     case VEEBHA_KEY_LEFT:
+        if (vt == VEEBHA_VIEW_TYPE_MEDIA || vt == VEEBHA_VIEW_TYPE_DIALER || vt == VEEBHA_VIEW_TYPE_CALC) return 0;
+        if (is_editing) return LV_KEY_LEFT;
         return (vt == VEEBHA_VIEW_TYPE_LIST) ? LV_KEY_PREV : LV_KEY_LEFT;
     case VEEBHA_KEY_RIGHT:
+        if (vt == VEEBHA_VIEW_TYPE_MEDIA || vt == VEEBHA_VIEW_TYPE_DIALER || vt == VEEBHA_VIEW_TYPE_CALC) return 0;
+        if (is_editing) return LV_KEY_RIGHT;
         return (vt == VEEBHA_VIEW_TYPE_LIST) ? LV_KEY_NEXT : LV_KEY_RIGHT;
     case VEEBHA_KEY_OK:
+        if (vt == VEEBHA_VIEW_TYPE_MEDIA || vt == VEEBHA_VIEW_TYPE_DIALER) return 0;
         return LV_KEY_ENTER;
     case VEEBHA_KEY_RSK:
     case VEEBHA_KEY_LSK:
@@ -161,35 +232,143 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
     uint32_t lv_key = veebha_key_to_lv_key(key);
 
     if (state == VEEBHA_KEY_STATE_PRESSED) {
+        if (screen_saver_is_active()) {
+            screen_saver_hide();
+            return;
+        }
+        screen_saver_reset_idle();
+
         if (!s_key_state[key].is_pressed) {
             s_key_state[key].is_pressed = true;
             s_key_state[key].press_start_ms = now;
             s_key_state[key].long_press_fired = false;
 
             veebha_view_type_t vt = win_mgr_get_active_view_type();
-            if (vt == VEEBHA_VIEW_TYPE_EDITOR &&
+            if (notif_panel_is_active()) {
+                if (key == VEEBHA_KEY_CALL || key == VEEBHA_KEY_STAR || key == VEEBHA_KEY_HASH ||
+                    key == VEEBHA_KEY_UP || key == VEEBHA_KEY_DOWN ||
+                    key == VEEBHA_KEY_LEFT || key == VEEBHA_KEY_RIGHT ||
+                    key == VEEBHA_KEY_OK || key == VEEBHA_KEY_NUM_0) {
+                    notif_panel_handle_key(key);
+                } else if (key == VEEBHA_KEY_LSK) {
+                    softkey_trigger_lsk();
+                } else if (key == VEEBHA_KEY_RSK) {
+                    softkey_trigger_rsk();
+                }
+            } else if (app_incall_is_foreground() &&
+                ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
+                 key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR ||
+                 key == VEEBHA_KEY_OK)) {
+                app_incall_handle_key(key);
+            } else if (vt == VEEBHA_VIEW_TYPE_EDITOR &&
                 ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
                  key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR)) {
                 t9_engine_handle_key(lv_key);
+            } else if (vt == VEEBHA_VIEW_TYPE_DIALER &&
+                       ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
+                        key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR)) {
+                char d = (key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ? ('0' + (key - VEEBHA_KEY_NUM_0)) :
+                         (key == VEEBHA_KEY_STAR ? '*' : '#');
+                app_dialer_handle_digit(d);
+            } else if (vt == VEEBHA_VIEW_TYPE_CALC &&
+                       ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
+                        key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR ||
+                        key == VEEBHA_KEY_UP || key == VEEBHA_KEY_DOWN ||
+                        key == VEEBHA_KEY_LEFT || key == VEEBHA_KEY_RIGHT ||
+                        key == VEEBHA_KEY_OK)) {
+                app_calc_handle_key(key);
+            } else if (app_stopwatch_is_active() &&
+                       ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
+                        key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR ||
+                        key == VEEBHA_KEY_UP || key == VEEBHA_KEY_DOWN ||
+                        key == VEEBHA_KEY_LEFT || key == VEEBHA_KEY_RIGHT ||
+                        key == VEEBHA_KEY_OK)) {
+                app_stopwatch_handle_key(key);
+            } else if (vt == VEEBHA_VIEW_TYPE_IDLE &&
+                       !task_mgr_is_active() && !notif_panel_is_active() && !tpl_dialog_is_active() &&
+                       live_pill_is_active() && key == VEEBHA_KEY_OK) {
+                live_pill_trigger_click();
+            } else if (vt == VEEBHA_VIEW_TYPE_IDLE &&
+                       !task_mgr_is_active() && !notif_panel_is_active() && !tpl_dialog_is_active() &&
+                       app_incall_is_active() && (key == VEEBHA_KEY_OK || key == VEEBHA_KEY_CALL)) {
+                app_incall_show();
+            } else if ((vt == VEEBHA_VIEW_TYPE_GRID || vt == VEEBHA_VIEW_TYPE_IDLE) &&
+                       !task_mgr_is_active() && !notif_panel_is_active() && !tpl_dialog_is_active() &&
+                       (key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9)) {
+                char str[2] = { (char)('0' + (key - VEEBHA_KEY_NUM_0)), '\0' };
+                app_dialer_open(str);
+            } else if (vt == VEEBHA_VIEW_TYPE_IDLE &&
+                       !task_mgr_is_active() && !notif_panel_is_active() && !tpl_dialog_is_active() &&
+                       key == VEEBHA_KEY_HASH) {
+                app_settings_toggle_silent();
+                bool is_sil = app_settings_is_silent();
+                static char s_prof_msg[64];
+                snprintf(s_prof_msg, sizeof(s_prof_msg), "%s Mode Activated", is_sil ? "Silent" : "General");
+                notif_panel_post_alert("Sound Profile", s_prof_msg);
+                printf("[IDLE] '#' Key pressed -> Sound profile toggled to %s\n", is_sil ? "Silent" : "General");
             } else if (lv_key != 0) {
                 indev_queue_push(lv_key, LV_INDEV_STATE_PRESSED);
             }
 
             dispatch_key_event(key, VEEBHA_KEY_STATE_PRESSED, VEEBHA_PRESS_SHORT, now);
 
+            if (vt == VEEBHA_VIEW_TYPE_MEDIA && !task_mgr_is_active() && !notif_panel_is_active() && !app_incall_is_foreground()) {
+                if (key == VEEBHA_KEY_HASH) {
+                    app_music_toggle_mode();
+                } else if (app_music_get_mode() == MUSIC_MODE_FM_RADIO) {
+                    if (key == VEEBHA_KEY_LEFT) {
+                        app_music_fm_seek(-1);
+                    } else if (key == VEEBHA_KEY_RIGHT) {
+                        app_music_fm_seek(+1);
+                    } else if (key == VEEBHA_KEY_UP) {
+                        app_music_fm_next_preset();
+                    } else if (key == VEEBHA_KEY_DOWN) {
+                        app_music_fm_prev_preset();
+                    } else if (key == VEEBHA_KEY_OK) {
+                        app_music_fm_toggle_mute();
+                    }
+                } else {
+                    if (key == VEEBHA_KEY_LEFT) {
+                        tpl_media_handle_seek(-5);
+                    } else if (key == VEEBHA_KEY_RIGHT) {
+                        tpl_media_handle_seek(+5);
+                    } else if (key == VEEBHA_KEY_OK) {
+                        tpl_media_handle_toggle();
+                    } else if (key == VEEBHA_KEY_UP) {
+                        app_music_adjust_volume(+1);
+                    } else if (key == VEEBHA_KEY_DOWN) {
+                        app_music_adjust_volume(-1);
+                    }
+                }
+            } else if (vt == VEEBHA_VIEW_TYPE_DIALER && !task_mgr_is_active() && !notif_panel_is_active()) {
+                if (key == VEEBHA_KEY_OK) {
+                    app_dialer_start_call();
+                }
+            }
+
             if (key == VEEBHA_KEY_LSK) {
-                softkey_trigger_lsk();
+                if (!notif_panel_is_active()) softkey_trigger_lsk();
             } else if (key == VEEBHA_KEY_RSK) {
-                if (softkey_get_rsk_long_action() == NULL) {
+                if (!notif_panel_is_active() && softkey_get_rsk_long_action() == NULL) {
                     softkey_trigger_rsk();
                 }
             } else if (key == VEEBHA_KEY_END) {
-                if (tpl_dialog_is_active()) {
-                    tpl_dialog_close();
+                if (notif_panel_is_active()) {
+                    notif_panel_close();
                 }
-                win_mgr_reset_to_home();
+                win_mgr_show_home();
             } else if (key == VEEBHA_KEY_CALL) {
-                printf("[HAL_INPUT] Call key pressed (Green Key)\n");
+                if (notif_panel_is_active()) {
+                    /* Handled by notif_panel_handle_key */
+                } else if (app_incall_is_active() && !app_incall_is_foreground()) {
+                    app_incall_show();
+                } else if (vt == VEEBHA_VIEW_TYPE_DIALER) {
+                    app_dialer_start_call();
+                } else if (vt == VEEBHA_VIEW_TYPE_GRID || vt == VEEBHA_VIEW_TYPE_IDLE) {
+                    app_dialer_open(NULL);
+                } else {
+                    printf("[HAL_INPUT] Call key pressed (Green Key)\n");
+                }
             }
         }
     } else {
@@ -202,9 +381,12 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
             s_key_state[key].is_pressed = false;
 
             veebha_view_type_t vt = win_mgr_get_active_view_type();
-            if (vt == VEEBHA_VIEW_TYPE_EDITOR &&
+            if ((vt == VEEBHA_VIEW_TYPE_EDITOR || vt == VEEBHA_VIEW_TYPE_CALC || app_stopwatch_is_active() || app_incall_is_foreground() || notif_panel_is_active()) &&
                 ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
-                 key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR)) {
+                 key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR ||
+                 key == VEEBHA_KEY_UP || key == VEEBHA_KEY_DOWN ||
+                 key == VEEBHA_KEY_LEFT || key == VEEBHA_KEY_RIGHT ||
+                 key == VEEBHA_KEY_OK)) {
                 /* Handled on press, do not push to indev */
             } else if (lv_key != 0) {
                 indev_queue_push(lv_key, LV_INDEV_STATE_RELEASED);
@@ -258,6 +440,10 @@ bool hal_input_poll(void)
                 dispatch_key_event((veebha_key_t)i, VEEBHA_KEY_STATE_PRESSED, VEEBHA_PRESS_LONG, now);
                 if (i == VEEBHA_KEY_RSK) {
                     softkey_trigger_rsk_long();
+                } else if (i == VEEBHA_KEY_CALL) {
+                    notif_panel_toggle();
+                } else if (i == VEEBHA_KEY_STAR) {
+                    task_mgr_toggle();
                 }
             }
         }
@@ -272,13 +458,42 @@ bool hal_input_poll(void)
             /* Ignore key repeats generated by SDL */
             if (event.key.repeat != 0) continue;
 
+            if (event.key.keysym.sym == SDLK_F5) {
+                os_irq_sim_trigger_call("+1234567890", "Alice");
+                continue;
+            } else if (event.key.keysym.sym == SDLK_F6) {
+                os_irq_sim_trigger_sms("Bob", "Are you free today?");
+                continue;
+            } else if (event.key.keysym.sym == SDLK_F7) {
+                os_irq_sim_trigger_sdcard_toggle();
+                continue;
+            } else if (event.key.keysym.sym == SDLK_F8) {
+                connectivity_usb_set_connected(true);
+                usb_select_show();
+                continue;
+            }
+
             veebha_key_t vkey = sim_keyboard_map_sdl_key(event.key.keysym.sym);
             if (vkey != VEEBHA_KEY_NONE) {
+                os_event_t evt;
+                memset(&evt, 0, sizeof(evt));
+                evt.type = OS_EVT_KEY_DOWN;
+                evt.timestamp = now;
+                evt.payload.key.key = vkey;
+                os_event_post(&evt);
+
                 hal_input_push_event(vkey, VEEBHA_KEY_STATE_PRESSED);
             }
         } else if (event.type == SDL_KEYUP) {
             veebha_key_t vkey = sim_keyboard_map_sdl_key(event.key.keysym.sym);
             if (vkey != VEEBHA_KEY_NONE) {
+                os_event_t evt;
+                memset(&evt, 0, sizeof(evt));
+                evt.type = OS_EVT_KEY_UP;
+                evt.timestamp = now;
+                evt.payload.key.key = vkey;
+                os_event_post(&evt);
+
                 hal_input_push_event(vkey, VEEBHA_KEY_STATE_RELEASED);
             }
         }
