@@ -354,7 +354,7 @@ static void open_display_settings(void)
 
     static tpl_list_item_t s_disp_items[3];
     s_disp_items[0].icon = LV_SYMBOL_IMAGE;
-    s_disp_items[0].title = veebha_i18n_str(STR_THEME);
+    s_disp_items[0].title = VEEBHA_I18N_CACHED(STR_THEME);
     s_disp_items[0].subtext = theme_sub;
 
     s_disp_items[1].icon = LV_SYMBOL_REFRESH;
@@ -362,17 +362,18 @@ static void open_display_settings(void)
     s_disp_items[1].subtext = bl_sub;
 
     s_disp_items[2].icon = LV_SYMBOL_IMAGE;
-    s_disp_items[2].title = veebha_i18n_str(STR_WALLPAPER);
+    s_disp_items[2].title = VEEBHA_I18N_CACHED(STR_WALLPAPER);
     s_disp_items[2].subtext = wp_sub;
 
     tpl_list_view_t desc = {
-        .title = veebha_i18n_str(STR_DISPLAY),
+        .title = VEEBHA_I18N_CACHED(STR_DISPLAY),
         .items = s_disp_items,
         .count = 3,
         .on_select = on_display_select,
         .on_back = NULL,
-        .lsk_label = veebha_i18n_str(STR_SELECT),
-        .rsk_label = veebha_i18n_str(STR_BACK)
+        .lsk_label = VEEBHA_I18N_CACHED(STR_SELECT),
+        .rsk_label = VEEBHA_I18N_CACHED(STR_BACK),
+        .keep_alive = true
     };
 
     lv_obj_t *scr = tpl_list_create(&desc);
