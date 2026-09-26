@@ -66,6 +66,11 @@ typedef struct {
 lv_obj_t * status_bar_create(lv_obj_t *parent, const char *title);
 
 /**
+ * Check if a given LVGL object is a VeebhaOS status bar container.
+ */
+bool status_bar_is_status_bar(lv_obj_t *obj);
+
+/**
  * Update the title label on an active status bar (no-op; titles are displayed in sub-headers).
  *
  * @param bar   Status bar object created with status_bar_create.

@@ -95,9 +95,11 @@ static lv_obj_t *s_launcher_screen = NULL;
 void app_launcher_invalidate(void)
 {
     if (s_launcher_screen && lv_obj_is_valid(s_launcher_screen)) {
-        win_mgr_set_launcher_screen(NULL);
-        lv_obj_delete_async(s_launcher_screen);
-        s_launcher_screen = NULL;
+        if (!win_mgr_is_screen_in_stack(s_launcher_screen)) {
+            win_mgr_set_launcher_screen(NULL);
+            lv_obj_delete_async(s_launcher_screen);
+            s_launcher_screen = NULL;
+        }
     }
 }
 

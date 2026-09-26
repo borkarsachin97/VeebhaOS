@@ -305,7 +305,7 @@ lv_obj_t * app_idle_create(void)
     lv_obj_remove_flag(data->call_pill, LV_OBJ_FLAG_SCROLLABLE);
 
     data->call_lbl = lv_label_create(data->call_pill);
-    lv_label_set_text(data->call_lbl, LV_SYMBOL_CALL " 0 Missed");
+    lv_label_set_text(data->call_lbl, LV_SYMBOL_CALL " 0 Calls");
     lv_obj_center(data->call_lbl);
     lv_obj_set_style_text_color(data->call_lbl, lv_color_hex(0xF87171), 0);
     lv_obj_set_style_text_font(data->call_lbl, veebha_font_get_default(), 0);
@@ -430,7 +430,7 @@ void app_idle_update(void)
     if (s_idle_data->call_pill && s_idle_data->call_lbl) {
         if (missed_calls > 0) {
             char buf[32];
-            snprintf(buf, sizeof(buf), LV_SYMBOL_CALL " %u Missed", missed_calls);
+            snprintf(buf, sizeof(buf), LV_SYMBOL_CALL " %u Calls", missed_calls);
             lv_label_set_text(s_idle_data->call_lbl, buf);
             lv_obj_clear_flag(s_idle_data->call_pill, LV_OBJ_FLAG_HIDDEN);
         } else {

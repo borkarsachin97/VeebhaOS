@@ -251,6 +251,11 @@ void win_mgr_set_launcher_screen(lv_obj_t *screen);
  */
 lv_obj_t * win_mgr_get_launcher_screen(void);
 
+/**
+ * Check if a screen is currently part of any task stack in Window Manager.
+ */
+bool win_mgr_is_screen_in_stack(lv_obj_t *screen);
+
 #ifdef __cplusplus
 }
 #endif

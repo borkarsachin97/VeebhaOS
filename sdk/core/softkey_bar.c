@@ -91,9 +91,18 @@ void softkey_trigger_rsk_long(void)
     }
 }
 
+static const int s_softkey_bar_magic = 0x534F4654; /* 'SOFT' */
+
+bool softkey_bar_is_softkey_bar(lv_obj_t *obj)
+{
+    if (!obj || !lv_obj_is_valid(obj)) return false;
+    return lv_obj_get_user_data(obj) == (void *)&s_softkey_bar_magic;
+}
+
 lv_obj_t * softkey_bar_create(lv_obj_t *parent, const char *lsk_label, const char *rsk_label)
 {
     lv_obj_t *bar = lv_obj_create(parent);
+    lv_obj_set_user_data(bar, (void *)&s_softkey_bar_magic);
     lv_obj_set_size(bar, lv_pct(100), CONFIG_SOFTKEY_BAR_HEIGHT);
     lv_obj_set_style_bg_color(bar, theme_is_light_mode() ? lv_color_hex(0xDCDCDC) : lv_color_hex(0x181A20), 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);

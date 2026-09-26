@@ -255,6 +255,12 @@ void hal_input_push_event(veebha_key_t key, veebha_key_state_t state)
                 } else if (key == VEEBHA_KEY_RSK) {
                     softkey_trigger_rsk();
                 }
+            } else if (tpl_dialog_is_active()) {
+                if (key == VEEBHA_KEY_OK || key == VEEBHA_KEY_LSK) {
+                    softkey_trigger_lsk();
+                } else if (key == VEEBHA_KEY_RSK || key == VEEBHA_KEY_END) {
+                    softkey_trigger_rsk();
+                }
             } else if (app_incall_is_foreground() &&
                 ((key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) ||
                  key == VEEBHA_KEY_HASH || key == VEEBHA_KEY_STAR ||

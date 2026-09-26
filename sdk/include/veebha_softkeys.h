@@ -74,6 +74,11 @@ softkey_callback_t softkey_get_rsk_long_action(void);
 lv_obj_t * softkey_bar_create(lv_obj_t *parent, const char *lsk_label, const char *rsk_label);
 
 /**
+ * Check if a given LVGL object is a VeebhaOS softkey bar container.
+ */
+bool softkey_bar_is_softkey_bar(lv_obj_t *obj);
+
+/**
  * Set the currently active softkey bar widget for label updates.
  */
 void softkey_bar_set_active_widget(lv_obj_t *bar);

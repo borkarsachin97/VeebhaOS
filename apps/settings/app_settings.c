@@ -21,12 +21,14 @@
 #include "veebha_theme.h"
 #include "boards/board_config.h"
 #include "boards/board_info.h"
+#include "sdk/include/veebha_version.h"
 #include "sdk/include/veebha_hardware.h"
 #include "apps/home/app_launcher.h"
 #include "apps/tools/app_tools.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 
 static sound_profile_t s_active_profile = SOUND_PROFILE_GENERAL;
 static uint8_t s_backlight_timeout_sec = 30;
@@ -139,6 +141,9 @@ static void on_theme_select(uint16_t index)
 {
     if (index < THEME_COUNT) {
         theme_set_palette((os_theme_id_t)index);
+        app_launcher_invalidate();
+        app_tools_invalidate();
+        app_settings_invalidate();
         os_nvram_data_t *nv = os_nvram_get();
         if (nv) {
             nv->theme_id = (uint8_t)index;
@@ -512,6 +517,7 @@ typedef struct {
     char               title[WIN_MGR_LABEL_MAX];
     os_fullscreen_mode_t fullscreen_mode;
     bool               show_battery_hud;
+    bool               keep_alive;
 
     uint8_t            hour;    /* 1..12 */
     uint8_t            minute;  /* 0..59 */
@@ -778,6 +784,7 @@ typedef struct {
     char               title[WIN_MGR_LABEL_MAX];
     os_fullscreen_mode_t fullscreen_mode;
     bool               show_battery_hud;
+    bool               keep_alive;
 
     uint16_t           year;      /* 2020..2099 */
     uint8_t            month;     /* 1..12 */
@@ -1170,7 +1177,7 @@ static void open_datetime_settings(void)
 }
 
 /* ============================================================================
- * 4. About Phone Info Screen
+ * 4. About Subsystem (About Phone & About VeebhaOS)
  * ============================================================================ */
 static void open_about_phone(void)
 {
@@ -1216,7 +1223,7 @@ static void open_about_phone(void)
     }
 
     tpl_list_view_t desc = {
-        .title = veebha_i18n_str(STR_ABOUT),
+        .title = veebha_i18n_str(STR_ABOUT_PHONE),
         .items = s_about_items,
         .count = sizeof(s_about_items) / sizeof(s_about_items[0]),
         .on_select = NULL,
@@ -1228,6 +1235,80 @@ static void open_about_phone(void)
     lv_obj_t *scr = tpl_list_create(&desc);
     if (scr) {
         win_mgr_push(scr, veebha_i18n_str(STR_OK), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+    }
+}
+
+static void open_about_veebhaos(void)
+{
+    const board_info_t *info = board_get_info();
+
+    static char s_os_lines[8][64];
+    snprintf(s_os_lines[0], sizeof(s_os_lines[0]), "OS: %s", VEEBHA_OS_NAME);
+    snprintf(s_os_lines[1], sizeof(s_os_lines[1]), "Version: v%s", (info && info->os_version) ? info->os_version : VEEBHA_OS_VERSION);
+    snprintf(s_os_lines[2], sizeof(s_os_lines[2]), "Developer: %s", (info && info->os_developer) ? info->os_developer : VEEBHA_OS_DEVELOPER);
+    snprintf(s_os_lines[3], sizeof(s_os_lines[3]), "Build Author: %s", (info && info->build_author) ? info->build_author : VEEBHA_BUILD_AUTHOR);
+    snprintf(s_os_lines[4], sizeof(s_os_lines[4]), "Math: Zero-FPU Fixed-Point");
+    snprintf(s_os_lines[5], sizeof(s_os_lines[5]), "Target: RTOS & Linux Kernel");
+    snprintf(s_os_lines[6], sizeof(s_os_lines[6]), "License: %s", VEEBHA_OS_LICENSE);
+    snprintf(s_os_lines[7], sizeof(s_os_lines[7]), "Build: %s", (info && info->build_timestamp) ? info->build_timestamp : "");
+
+    static tpl_list_item_t s_veebha_items[8];
+    for (int i = 0; i < 8; i++) {
+        s_veebha_items[i] = (tpl_list_item_t){ .icon = NULL, .title = s_os_lines[i], .subtext = NULL };
+    }
+
+    tpl_list_view_t desc = {
+        .title = veebha_i18n_str(STR_ABOUT_VEEBHAOS),
+        .items = s_veebha_items,
+        .count = sizeof(s_veebha_items) / sizeof(s_veebha_items[0]),
+        .on_select = NULL,
+        .on_back = NULL,
+        .lsk_label = veebha_i18n_str(STR_OK),
+        .rsk_label = veebha_i18n_str(STR_BACK)
+    };
+
+    lv_obj_t *scr = tpl_list_create(&desc);
+    if (scr) {
+        win_mgr_push(scr, veebha_i18n_str(STR_OK), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+    }
+}
+
+static void on_about_menu_select(uint16_t index)
+{
+    if (index == 0) {
+        open_about_phone();
+    } else if (index == 1) {
+        open_about_veebhaos();
+    }
+}
+
+static void open_about_menu(void)
+{
+    static tpl_list_item_t s_about_sub_items[2];
+    s_about_sub_items[0] = (tpl_list_item_t){
+        .icon = LV_SYMBOL_SETTINGS,
+        .title = veebha_i18n_str(STR_ABOUT_PHONE),
+        .subtext = "Hardware & Device specs"
+    };
+    s_about_sub_items[1] = (tpl_list_item_t){
+        .icon = LV_SYMBOL_FILE,
+        .title = veebha_i18n_str(STR_ABOUT_VEEBHAOS),
+        .subtext = "OS, Developer & Author"
+    };
+
+    tpl_list_view_t desc = {
+        .title = veebha_i18n_str(STR_ABOUT),
+        .items = s_about_sub_items,
+        .count = 2,
+        .on_select = on_about_menu_select,
+        .on_back = NULL,
+        .lsk_label = veebha_i18n_str(STR_SELECT),
+        .rsk_label = veebha_i18n_str(STR_BACK)
+    };
+
+    lv_obj_t *scr = tpl_list_create(&desc);
+    if (scr) {
+        win_mgr_push(scr, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
     }
 }
 
@@ -1280,6 +1361,8 @@ static void on_language_select(uint16_t index)
     if (index < LANG_COUNT) {
         veebha_i18n_set_language((language_id_t)index);
         app_launcher_invalidate();
+        app_tools_invalidate();
+        app_settings_invalidate();
         os_nvram_data_t *nv = os_nvram_get();
         if (nv) {
             nv->language_id = (uint8_t)index;
@@ -1330,13 +1413,58 @@ static void on_main_settings_select(uint16_t index)
     } else if (index == 4) {
         open_language_settings();
     } else if (index == 5) {
-        open_about_phone();
+        open_about_menu();
+    }
+}
+
+static lv_obj_t *s_settings_screen = NULL;
+static language_id_t s_settings_lang = (language_id_t)-1;
+static os_theme_id_t s_settings_theme = (os_theme_id_t)0xFF;
+
+static void on_settings_screen_deleted(lv_event_t *e)
+{
+    (void)e;
+    s_settings_screen = NULL;
+}
+
+void app_settings_invalidate(void)
+{
+    if (s_settings_screen && lv_obj_is_valid(s_settings_screen)) {
+        if (!win_mgr_is_screen_in_stack(s_settings_screen)) {
+            lv_obj_delete_async(s_settings_screen);
+            s_settings_screen = NULL;
+        }
     }
 }
 
 void app_settings_open(void)
 {
+#if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+#endif
+
     app_settings_init();
+
+    language_id_t cur_lang = veebha_i18n_get_language();
+    os_theme_id_t cur_theme = theme_get_palette();
+
+    if (s_settings_screen && lv_obj_is_valid(s_settings_screen)) {
+        if (s_settings_lang != cur_lang || s_settings_theme != cur_theme) {
+            lv_obj_delete_async(s_settings_screen);
+            s_settings_screen = NULL;
+        } else {
+            win_mgr_push(s_settings_screen, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+#if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            long us = (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L;
+            printf("[SETTINGS] Main Settings menu opened (cached, warm: %ld us)\n", us);
+#else
+            printf("[SETTINGS] Main Settings menu opened (cached, warm)\n");
+#endif
+            return;
+        }
+    }
 
     static tpl_list_item_t s_main_items[6];
     s_main_items[0] = (tpl_list_item_t){ .icon = LV_SYMBOL_EYE_OPEN,   .title = veebha_i18n_str(STR_DISPLAY),        .subtext = "Theme, Backlight" };
@@ -1344,7 +1472,7 @@ void app_settings_open(void)
     s_main_items[2] = (tpl_list_item_t){ .icon = LV_SYMBOL_SETTINGS,   .title = veebha_i18n_str(STR_CONNECTIVITY),   .subtext = "Bluetooth, Tethering" };
     s_main_items[3] = (tpl_list_item_t){ .icon = LV_SYMBOL_BELL,       .title = veebha_i18n_str(STR_DATE_TIME),      .subtext = "Clock, Timezone" };
     s_main_items[4] = (tpl_list_item_t){ .icon = LV_SYMBOL_EDIT,       .title = veebha_i18n_str(STR_LANGUAGE),       .subtext = "English, हिन्दी, Русский" };
-    s_main_items[5] = (tpl_list_item_t){ .icon = LV_SYMBOL_SETTINGS,   .title = veebha_i18n_str(STR_ABOUT),          .subtext = "Hardware & Build info" };
+    s_main_items[5] = (tpl_list_item_t){ .icon = LV_SYMBOL_SETTINGS,   .title = veebha_i18n_str(STR_ABOUT),          .subtext = "Phone & System info" };
 
     tpl_list_view_t desc = {
         .title = veebha_i18n_str(STR_SETTINGS),
@@ -1353,12 +1481,22 @@ void app_settings_open(void)
         .on_select = on_main_settings_select,
         .on_back = NULL,
         .lsk_label = veebha_i18n_str(STR_SELECT),
-        .rsk_label = veebha_i18n_str(STR_BACK)
+        .rsk_label = veebha_i18n_str(STR_BACK),
+        .keep_alive = true,
     };
 
-    lv_obj_t *scr = tpl_list_create(&desc);
-    if (scr) {
-        win_mgr_push(scr, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
-        printf("[SETTINGS] Main Settings menu opened\n");
+    s_settings_screen = tpl_list_create(&desc);
+    if (s_settings_screen) {
+        s_settings_lang = cur_lang;
+        s_settings_theme = cur_theme;
+        lv_obj_add_event_cb(s_settings_screen, on_settings_screen_deleted, LV_EVENT_DELETE, NULL);
+        win_mgr_push(s_settings_screen, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+#if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        long us = (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L;
+        printf("[SETTINGS] Main Settings menu opened (cold: %ld us)\n", us);
+#else
+        printf("[SETTINGS] Main Settings menu opened (cold)\n");
+#endif
     }
 }

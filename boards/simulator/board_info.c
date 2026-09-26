@@ -33,6 +33,8 @@ static const board_info_t s_sim_board_info = {
     .modem_type         = "Simulated GSM/LTE",
     .connectivity_chip  = "Simulated BT 4.0 / USB",
     .os_version         = VEEBHA_OS_VERSION,
+    .os_developer       = VEEBHA_OS_DEVELOPER,
+    .build_author       = VEEBHA_BUILD_AUTHOR,
     .build_timestamp    = __DATE__ " " __TIME__
 };
 

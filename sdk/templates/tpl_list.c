@@ -39,35 +39,11 @@ typedef struct {
     void (*on_back)(void);
 } tpl_list_screen_data_t;
 
-/* ---------- Label reuse pool ---------- */
-#define LABEL_POOL_SIZE 12
-static lv_obj_t *label_pool[LABEL_POOL_SIZE];
-static unsigned label_pool_next = 0;
-static lv_obj_t *label_pool_acquire(lv_obj_t *parent) {
-    lv_obj_t *lbl = label_pool[label_pool_next];
-    if (!lbl) {
-        lbl = lv_label_create(parent);
-        label_pool[label_pool_next] = lbl;
-    } else {
-        lv_obj_set_parent(lbl, parent);
-        lv_obj_clear_flag(lbl, LV_OBJ_FLAG_HIDDEN);
-    }
-    label_pool_next = (label_pool_next + 1) % LABEL_POOL_SIZE;
-    return lbl;
-}
-
 static void on_screen_delete_cb(lv_event_t *e)
 {
     lv_obj_t *scr = lv_event_get_target(e);
     tpl_list_screen_data_t *data = (tpl_list_screen_data_t *)lv_obj_get_user_data(scr);
     if (data) {
-        // Reset label reuse pool to avoid leftover labels on reuse
-        for (unsigned i = 0; i < LABEL_POOL_SIZE; ++i) {
-            if (label_pool[i]) {
-                lv_obj_add_flag(label_pool[i], LV_OBJ_FLAG_HIDDEN);
-            }
-        }
-        label_pool_next = 0;
         free(data);
         lv_obj_set_user_data(scr, NULL);
     }
@@ -77,6 +53,9 @@ static lv_style_t s_list_btn_style;
 static lv_style_t s_list_btn_focused_style;
 static lv_style_t s_list_lbl_style;
 static lv_style_t s_list_lbl_focused_style;
+static lv_style_t s_subhdr_style;
+static lv_style_t s_hdr_lbl_style;
+static lv_style_t s_content_style;
 static bool s_styles_initialized = false;
 static os_theme_id_t s_last_palette = (os_theme_id_t)0xFF;
 static bool s_last_light_mode = false;
@@ -94,16 +73,44 @@ static void ensure_list_styles(void)
 
     bool is_mono = (tid == THEME_HIGH_CONTRAST_BW);
     lv_color_t sep_color = is_mono ? lv_color_hex(0x444444) : (is_light ? lv_color_hex(0xE0E0E0) : lv_color_hex(0x222630));
-    lv_color_t focus_bg = is_mono ? lv_color_hex(0xFFFFFF) : (is_light ? lv_color_hex(0xD0E8FF) : lv_color_hex(0x1B3555));
+    lv_color_t focus_bg = is_light ? lv_color_hex(0xD0E8FF) : lv_color_hex(0x1B3555);
     lv_color_t text_col = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->text_primary;
-    lv_color_t focus_text = is_mono ? lv_color_hex(0x000000) : theme_get()->accent;
+    lv_color_t focus_text = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->accent;
 
     if (s_styles_initialized) {
         lv_style_reset(&s_list_btn_style);
         lv_style_reset(&s_list_btn_focused_style);
         lv_style_reset(&s_list_lbl_style);
         lv_style_reset(&s_list_lbl_focused_style);
+        lv_style_reset(&s_subhdr_style);
+        lv_style_reset(&s_hdr_lbl_style);
+        lv_style_reset(&s_content_style);
     }
+
+    /* Sub-Screen Header Strip Style */
+    lv_style_init(&s_subhdr_style);
+    lv_style_set_bg_color(&s_subhdr_style, theme_get()->card_color);
+    lv_style_set_bg_opa(&s_subhdr_style, LV_OPA_COVER);
+    lv_style_set_border_side(&s_subhdr_style, LV_BORDER_SIDE_BOTTOM);
+    lv_style_set_border_color(&s_subhdr_style, is_light ? lv_color_hex(0xE2E8F0) : lv_color_hex(0x282C35));
+    lv_style_set_border_width(&s_subhdr_style, 1);
+    lv_style_set_radius(&s_subhdr_style, 0);
+    lv_style_set_outline_width(&s_subhdr_style, 0);
+    lv_style_set_pad_all(&s_subhdr_style, 0);
+
+    /* Header Label Style */
+    lv_style_init(&s_hdr_lbl_style);
+    lv_style_set_text_color(&s_hdr_lbl_style, theme_get()->accent);
+    lv_style_set_text_font(&s_hdr_lbl_style, veebha_font_get_default());
+
+    /* Content Viewport Style */
+    lv_style_init(&s_content_style);
+    lv_style_set_bg_color(&s_content_style, theme_get()->bg_color);
+    lv_style_set_bg_opa(&s_content_style, LV_OPA_COVER);
+    lv_style_set_border_width(&s_content_style, 0);
+    lv_style_set_radius(&s_content_style, 0);
+    lv_style_set_pad_all(&s_content_style, 0);
+    lv_style_set_pad_row(&s_content_style, 0);
 
     /* Unfocused Button: Transparent, zero pixel fill, 1px bottom separator line */
     lv_style_init(&s_list_btn_style);
@@ -138,6 +145,31 @@ static void ensure_list_styles(void)
     lv_style_set_text_color(&s_list_lbl_focused_style, focus_text);
 
     s_styles_initialized = true;
+}
+
+static void on_list_btn_focus_cb(lv_event_t *e)
+{
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t *btn = lv_event_get_target(e);
+    if (!btn || !lv_obj_is_valid(btn)) return;
+
+    os_theme_id_t tid = theme_get_palette();
+    bool is_mono = (tid == THEME_HIGH_CONTRAST_BW);
+    lv_color_t text_col = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->text_primary;
+    lv_color_t focus_text = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->accent;
+
+    uint32_t cnt = lv_obj_get_child_count(btn);
+    for (uint32_t i = 0; i < cnt; i++) {
+        lv_obj_t *child = lv_obj_get_child(btn, i);
+        if (!child || !lv_obj_is_valid(child)) continue;
+        if (lv_obj_check_type(child, &lv_label_class)) {
+            if (code == LV_EVENT_FOCUSED) {
+                lv_obj_set_style_text_color(child, focus_text, 0);
+            } else if (code == LV_EVENT_DEFOCUSED) {
+                lv_obj_set_style_text_color(child, text_col, 0);
+            }
+        }
+    }
 }
 
 static void on_item_clicked(lv_event_t *e)
@@ -235,36 +267,28 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
         lv_obj_align(sb, LV_ALIGN_TOP_MID, 0, 0);
     }
 
+    ensure_list_styles();
+
     /* Dedicated Sub-Screen Header Strip (Height: 18px, Width: 176px at y=18) */
     lv_obj_t *subhdr = lv_obj_create(screen);
+    lv_obj_remove_style_all(subhdr);
+    lv_obj_add_style(subhdr, &s_subhdr_style, 0);
     lv_obj_set_size(subhdr, CONFIG_DISP_HOR_RES, 18);
     lv_obj_set_pos(subhdr, 0, 18);
-    lv_obj_set_style_bg_color(subhdr, theme_get()->card_color, 0);
-    lv_obj_set_style_bg_opa(subhdr, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_side(subhdr, LV_BORDER_SIDE_BOTTOM, 0);
-    lv_obj_set_style_border_color(subhdr, theme_is_light_mode() ? lv_color_hex(0xE2E8F0) : lv_color_hex(0x282C35), 0);
-    lv_obj_set_style_border_width(subhdr, 1, 0);
-    lv_obj_set_style_radius(subhdr, 0, 0);
-    lv_obj_set_style_outline_width(subhdr, 0, 0);
-    lv_obj_set_style_pad_all(subhdr, 0, 0);
     lv_obj_remove_flag(subhdr, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *hdr_lbl = lv_label_create(subhdr);
+    lv_obj_remove_style_all(hdr_lbl);
+    lv_obj_add_style(hdr_lbl, &s_hdr_lbl_style, 0);
     lv_label_set_text(hdr_lbl, desc->title ? desc->title : "MENU");
-    lv_obj_set_style_text_color(hdr_lbl, theme_get()->accent, 0);
-    lv_obj_set_style_text_font(hdr_lbl, veebha_font_get_default(), 0);
     lv_obj_align(hdr_lbl, LV_ALIGN_LEFT_MID, 6, 0);
 
     /* 3. Zone B: Content Viewport (Height: 164px at y=36) */
     lv_obj_t *content = lv_obj_create(screen);
+    lv_obj_remove_style_all(content);
+    lv_obj_add_style(content, &s_content_style, 0);
     lv_obj_set_size(content, CONFIG_DISP_HOR_RES, 164);
     lv_obj_set_pos(content, 0, 36);
-    lv_obj_set_style_bg_color(content, theme_get()->bg_color, 0);
-    lv_obj_set_style_bg_opa(content, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(content, 0, 0);
-    lv_obj_set_style_radius(content, 0, 0);
-    lv_obj_set_style_pad_all(content, 0, 0);
-    lv_obj_set_style_pad_row(content, 0, 0);
     lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
@@ -275,14 +299,12 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
 
     /* Add Items */
     lv_group_t *group = win_mgr_get_group();
-    ensure_list_styles();
 
     for (uint16_t i = 0; i < desc->count; i++) {
         lv_obj_t *btn = lv_button_create(content);
         lv_obj_remove_style_all(btn);
         lv_obj_add_style(btn, &s_list_btn_style, 0);
-        lv_obj_add_style(btn, &s_list_btn_focused_style, LV_STATE_FOCUSED);
-        lv_obj_add_style(btn, &s_list_btn_focused_style, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(btn, &s_list_btn_focused_style, LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
         lv_obj_set_size(btn, CONFIG_DISP_HOR_RES, 22);
         lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLL_ANIMATION);
         lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
@@ -293,11 +315,10 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
         lv_obj_set_user_data(btn, (void *)(uintptr_t)i);
 
         /* Title Label: Directly inside button */
-        lv_obj_t *lbl = label_pool_acquire(btn);
+        lv_obj_t *lbl = lv_label_create(btn);
         lv_obj_remove_style_all(lbl);
         lv_obj_add_style(lbl, &s_list_lbl_style, 0);
-        lv_obj_add_style(lbl, &s_list_lbl_focused_style, LV_STATE_FOCUSED);
-        lv_obj_add_style(lbl, &s_list_lbl_focused_style, LV_STATE_FOCUS_KEY);
+        lv_obj_add_style(lbl, &s_list_lbl_focused_style, LV_STATE_FOCUSED | LV_STATE_FOCUS_KEY);
         lv_label_set_text(lbl, desc->items[i].title ? desc->items[i].title : "");
         lv_obj_set_width(lbl, 164);
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
@@ -306,12 +327,20 @@ lv_obj_t * tpl_list_create(const tpl_list_view_t *desc)
         /* Scroll on focus to ensure off-screen rows scroll into view automatically */
         lv_obj_add_flag(btn, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 
-        /* Click Event Binding */
+        /* Click and Focus Event Binding */
         lv_obj_add_event_cb(btn, on_item_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)i);
+        lv_obj_add_event_cb(btn, on_list_btn_focus_cb, LV_EVENT_FOCUSED, NULL);
+        lv_obj_add_event_cb(btn, on_list_btn_focus_cb, LV_EVENT_DEFOCUSED, NULL);
 
         /* Register to Keypad Group */
         if (group) {
             lv_group_add_obj(group, btn);
+        }
+
+        /* Initial focused item text color */
+        if (i == 0) {
+            bool is_mono = (theme_get_palette() == THEME_HIGH_CONTRAST_BW);
+            lv_obj_set_style_text_color(lbl, is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->accent, 0);
         }
     }
 

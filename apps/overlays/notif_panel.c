@@ -193,8 +193,13 @@ static void on_notif_card_focus_cb(lv_event_t *e)
     lv_obj_t *body_lbl = (lv_obj_t *)lv_event_get_user_data(e);
     if (!body_lbl || !lv_obj_is_valid(body_lbl)) return;
 
+    os_theme_id_t tid = theme_get_palette();
+    bool is_mono = (tid == THEME_HIGH_CONTRAST_BW);
+    lv_color_t focus_text = is_mono ? lv_color_hex(0x000000) : (theme_is_light_mode() ? lv_color_hex(0x003366) : theme_get()->accent);
+    lv_color_t def_text = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->text_primary;
+
     if (code == LV_EVENT_FOCUSED) {
-        lv_label_set_long_mode(body_lbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_color(body_lbl, focus_text, 0);
         if (s_panel) {
             lv_obj_t *card = lv_event_get_target(e);
             for (uint16_t i = 0; i < s_notif_count; i++) {
@@ -206,7 +211,7 @@ static void on_notif_card_focus_cb(lv_event_t *e)
             update_softkeys_for_focus();
         }
     } else if (code == LV_EVENT_DEFOCUSED) {
-        lv_label_set_long_mode(body_lbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_color(body_lbl, def_text, 0);
     }
 }
 
@@ -394,7 +399,7 @@ static void rebuild_notif_deck(void)
 
             lv_obj_t *card = lv_button_create(s_panel->page_notif);
             s_panel->notif_cards[i] = card;
-            lv_obj_set_size(card, 166, 38);
+            lv_obj_set_size(card, 166, 22);
             lv_obj_set_style_bg_color(card, theme_get()->card_color, 0);
             lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
             lv_obj_set_style_border_color(card, theme_is_light_mode() ? lv_color_hex(0xCCCCCC) : lv_color_hex(0x2D3340), 0);
@@ -402,52 +407,42 @@ static void rebuild_notif_deck(void)
             lv_obj_set_style_radius(card, 0, 0);
             lv_obj_set_style_outline_width(card, 0, 0);
             lv_obj_set_style_outline_pad(card, 0, 0);
-            lv_obj_set_style_pad_hor(card, 6, 0);
-            lv_obj_set_style_pad_ver(card, 3, 0);
+            lv_obj_set_style_pad_all(card, 0, 0);
             lv_obj_remove_flag(card, LV_OBJ_FLAG_SCROLLABLE);
 
+            os_theme_id_t tid = theme_get_palette();
+            bool is_mono = (tid == THEME_HIGH_CONTRAST_BW);
+            lv_color_t focus_bg = is_mono ? lv_color_hex(0xFFFFFF) : (theme_is_light_mode() ? lv_color_hex(0xD0E8FF) : lv_color_hex(0x1B3555));
+            lv_obj_set_style_bg_color(card, focus_bg, LV_STATE_FOCUSED);
             lv_obj_set_style_border_color(card, theme_get()->accent, LV_STATE_FOCUSED);
-            lv_obj_set_style_border_width(card, 2, LV_STATE_FOCUSED);
+            lv_obj_set_style_border_width(card, 1, LV_STATE_FOCUSED);
             lv_obj_set_style_radius(card, 0, LV_STATE_FOCUSED);
             lv_obj_set_style_outline_width(card, 0, LV_STATE_FOCUSED);
-            lv_obj_set_style_outline_pad(card, 0, LV_STATE_FOCUSED);
-            lv_obj_set_flex_flow(card, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_flex_align(card, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
-            /* Row 1: Icon + Source + Timestamp */
-            lv_obj_t *meta_row = lv_obj_create(card);
-            lv_obj_set_size(meta_row, lv_pct(100), 14);
-            lv_obj_set_style_bg_opa(meta_row, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_border_width(meta_row, 0, 0);
-            lv_obj_set_style_pad_all(meta_row, 0, 0);
-            lv_obj_remove_flag(meta_row, LV_OBJ_FLAG_SCROLLABLE);
-            lv_obj_set_flex_flow(meta_row, LV_FLEX_FLOW_ROW);
-            lv_obj_set_flex_align(meta_row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+            /* Single-line text only: Welcome to VeebhaOS... */
+            char line_buf[48];
+            const char *raw = n->body;
+            size_t len = 0;
+            while (raw[len] && len < sizeof(line_buf) - 5) {
+                if (raw[len] == '\n' || raw[len] == '\r') break;
+                line_buf[len] = raw[len];
+                len++;
+            }
+            line_buf[len] = '\0';
+            if (raw[len] != '\0' && len > 22) {
+                line_buf[22] = '.';
+                line_buf[23] = '.';
+                line_buf[24] = '.';
+                line_buf[25] = '\0';
+            }
 
-            lv_obj_t *icon_lbl = lv_label_create(meta_row);
-            lv_label_set_text(icon_lbl, n->icon);
-            lv_obj_set_style_text_color(icon_lbl, theme_get()->accent, 0);
-            lv_obj_set_style_text_font(icon_lbl, &lv_font_montserrat_10, 0);
-
-            lv_obj_t *src_lbl = lv_label_create(meta_row);
-            lv_label_set_text(src_lbl, n->source);
-            lv_obj_set_style_text_color(src_lbl, theme_get()->accent, 0);
-            lv_obj_set_style_text_font(src_lbl, veebha_font_get_default(), 0);
-            lv_obj_set_style_pad_left(src_lbl, 4, 0);
-            lv_obj_set_flex_grow(src_lbl, 1);
-
-            lv_obj_t *ts_lbl = lv_label_create(meta_row);
-            lv_label_set_text(ts_lbl, n->timestamp);
-            lv_obj_set_style_text_color(ts_lbl, theme_get()->text_muted, 0);
-            lv_obj_set_style_text_font(ts_lbl, veebha_font_get_default(), 0);
-
-            /* Row 2: Body text */
             lv_obj_t *body_lbl = lv_label_create(card);
-            lv_label_set_text(body_lbl, n->body);
-            lv_obj_set_style_text_color(body_lbl, theme_get()->text_primary, 0);
+            lv_label_set_text(body_lbl, line_buf);
+            lv_obj_set_style_text_color(body_lbl, (i == 0) ? (is_mono ? lv_color_hex(0x000000) : theme_get()->accent) : theme_get()->text_primary, 0);
             lv_obj_set_style_text_font(body_lbl, veebha_font_get_default(), 0);
-            lv_obj_set_width(body_lbl, 154);
-            lv_label_set_long_mode(body_lbl, LV_LABEL_LONG_DOT);
+            lv_obj_set_size(body_lbl, 156, 16);
+            lv_label_set_long_mode(body_lbl, LV_LABEL_LONG_CLIP);
+            lv_obj_align(body_lbl, LV_ALIGN_LEFT_MID, 5, 0);
 
             lv_obj_set_user_data(card, (void*)(uintptr_t)i);
             lv_obj_add_event_cb(card, on_card_clicked_event, LV_EVENT_CLICKED, NULL);

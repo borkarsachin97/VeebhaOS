@@ -2942,6 +2942,28 @@ static int run_test_step(uint32_t frame_count)
                     return 233;
                 }
 
+                veebha_i18n_set_language(LANG_EN);
+                const char *abt_en = veebha_i18n_str(STR_ABOUT);
+                const char *abtp_en = veebha_i18n_str(STR_ABOUT_PHONE);
+                const char *abtos_en = veebha_i18n_str(STR_ABOUT_VEEBHAOS);
+                const board_info_t *binfo_chk = board_get_info();
+                printf("[TEST] Step 56c check: About strings: '%s', '%s', '%s', Dev='%s', Author='%s'\n",
+                       abt_en, abtp_en, abtos_en,
+                       binfo_chk ? binfo_chk->os_developer : "",
+                       binfo_chk ? binfo_chk->build_author : "");
+                if (strcmp(abt_en, "About") != 0 || strcmp(abtp_en, "About Phone") != 0 || strcmp(abtos_en, "About VeebhaOS") != 0) {
+                    fprintf(stderr, "[TEST ERROR] About string catalog lookup mismatch!\n");
+                    return 233;
+                }
+                if (!binfo_chk || !binfo_chk->os_developer || strcmp(binfo_chk->os_developer, "Sachin Borkar") != 0) {
+                    fprintf(stderr, "[TEST ERROR] OS Developer mismatch in board_info!\n");
+                    return 233;
+                }
+                if (!binfo_chk->build_author || strcmp(binfo_chk->build_author, "Sachin Borkar") != 0) {
+                    fprintf(stderr, "[TEST ERROR] Build Author mismatch in board_info!\n");
+                    return 233;
+                }
+
                 /* Reset to English and test UI Language selector */
                 veebha_i18n_set_language(LANG_EN);
                 app_settings_open();
@@ -3136,6 +3158,7 @@ static int run_test_step(uint32_t frame_count)
             } else if (frame_count == 1060) {
                 printf("[TEST] Step 59b check: In Graphical Brick Breaker (Depth=%u, exp 2). Injecting paddle moves...\n",
                        win_mgr_get_depth());
+                hal_display_save_screenshot("/home/vixxkigoli/.gemini/antigravity/brain/b04608c8-9a6f-42ec-b13a-16d21e13438f/brick_breaker_fullscreen.bmp");
                 test_inject_key(VEEBHA_KEY_NUM_4);
                 test_inject_key(VEEBHA_KEY_NUM_6);
                 test_inject_key(VEEBHA_KEY_NUM_5);
@@ -3159,6 +3182,7 @@ static int run_test_step(uint32_t frame_count)
             } else if (frame_count == 1068) {
                 printf("[TEST] Step 59d check: In Graphical Tetris Retro (Depth=%u, exp 2). Testing 10x16 matrix input...\n",
                        win_mgr_get_depth());
+                hal_display_save_screenshot("/home/vixxkigoli/.gemini/antigravity/brain/b04608c8-9a6f-42ec-b13a-16d21e13438f/tetris_fullscreen.bmp");
                 test_inject_key(VEEBHA_KEY_NUM_4); /* Move left */
                 test_inject_key(VEEBHA_KEY_NUM_6); /* Move right */
                 test_inject_key(VEEBHA_KEY_NUM_2); /* Rotate */

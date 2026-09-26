@@ -190,9 +190,7 @@ void theme_apply_to_screen(lv_obj_t *screen, const os_theme_tokens_t *tokens)
                         lv_obj_set_style_radius(item, 0, 0);
                         lv_obj_set_style_outline_width(item, 0, 0);
 
-                        lv_color_t foc_bg = (s_current_theme_id == THEME_HIGH_CONTRAST_BW)
-                                            ? lv_color_hex(0x222222)
-                                            : (tokens->is_light ? lv_color_hex(0xD0E8FF) : lv_color_hex(0x1A3555));
+                        lv_color_t foc_bg = tokens->is_light ? lv_color_hex(0xD0E8FF) : lv_color_hex(0x1A3555);
                         lv_obj_set_style_bg_color(item, foc_bg, LV_STATE_FOCUSED);
                         lv_obj_set_style_border_color(item, tokens->accent, LV_STATE_FOCUSED);
                         lv_obj_set_style_border_width(item, 2, LV_STATE_FOCUSED);
@@ -205,6 +203,8 @@ void theme_apply_to_screen(lv_obj_t *screen, const os_theme_tokens_t *tokens)
                         lv_obj_set_style_radius(item, 0, LV_STATE_FOCUS_KEY);
                         lv_obj_set_style_outline_width(item, 0, LV_STATE_FOCUS_KEY);
 
+                        bool item_focused = lv_obj_has_state(item, LV_STATE_FOCUSED) || lv_obj_has_state(item, LV_STATE_FOCUS_KEY);
+
                         uint32_t btn_kids = lv_obj_get_child_count(item);
                         for (uint32_t k = 0; k < btn_kids; k++) {
                             lv_obj_t *kobj = lv_obj_get_child(item, k);
@@ -216,9 +216,13 @@ void theme_apply_to_screen(lv_obj_t *screen, const os_theme_tokens_t *tokens)
                                 if (txt && (unsigned char)txt[0] >= 0xEF) {
                                     /* Likely an LV_SYMBOL UTF-8 sequence */
                                     lv_obj_set_style_text_color(kobj, tokens->accent, 0);
+                                    lv_obj_set_style_text_color(kobj, lv_color_hex(0xFFFFFF), LV_STATE_FOCUSED);
+                                    lv_obj_set_style_text_color(kobj, lv_color_hex(0xFFFFFF), LV_STATE_FOCUS_KEY);
                                 } else {
-                                    lv_obj_set_style_text_color(kobj, tokens->text_primary, 0);
-                                    lv_obj_set_style_text_color(kobj, tokens->accent, LV_STATE_FOCUSED);
+                                    lv_color_t cur_col = (item_focused)
+                                                         ? (s_current_theme_id == THEME_HIGH_CONTRAST_BW ? lv_color_hex(0xFFFFFF) : tokens->accent)
+                                                         : tokens->text_primary;
+                                    lv_obj_set_style_text_color(kobj, cur_col, 0);
                                 }
                             } else {
                                 /* Container inside button (like text_col) */
@@ -228,8 +232,10 @@ void theme_apply_to_screen(lv_obj_t *screen, const os_theme_tokens_t *tokens)
                                     if (!sub_lbl || !lv_obj_is_valid(sub_lbl)) continue;
                                     if (s == 0) {
                                         /* Title */
-                                        lv_obj_set_style_text_color(sub_lbl, tokens->text_primary, 0);
-                                        lv_obj_set_style_text_color(sub_lbl, tokens->accent, LV_STATE_FOCUSED);
+                                        lv_color_t cur_col = (item_focused)
+                                                             ? (s_current_theme_id == THEME_HIGH_CONTRAST_BW ? lv_color_hex(0xFFFFFF) : tokens->accent)
+                                                             : tokens->text_primary;
+                                        lv_obj_set_style_text_color(sub_lbl, cur_col, 0);
                                     } else {
                                         /* Subtitle */
                                         lv_obj_set_style_text_color(sub_lbl, tokens->text_muted, 0);

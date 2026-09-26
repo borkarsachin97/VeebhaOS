@@ -65,9 +65,15 @@ static void on_dialog_key_cb(lv_event_t *e)
     uint32_t key = lv_event_get_key(e);
     if (key == LV_KEY_ENTER) {
         on_dialog_confirm();
-    } else if (key == LV_KEY_ESC) {
+    } else if (key == LV_KEY_ESC || key == LV_KEY_BACKSPACE || key == LV_KEY_DEL || key == LV_KEY_LEFT) {
         on_dialog_cancel();
     }
+}
+
+static void on_dialog_click_cb(lv_event_t *e)
+{
+    (void)e;
+    on_dialog_confirm();
 }
 
 bool tpl_dialog_is_active(void)
@@ -173,6 +179,12 @@ lv_obj_t * tpl_dialog_show(const tpl_dialog_desc_t *desc)
     }
 
     /* 3. Register Card into Keypad Group and hook key events */
+    lv_obj_add_flag(overlay, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(overlay, on_dialog_click_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_add_flag(card, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(card, on_dialog_click_cb, LV_EVENT_CLICKED, NULL);
+
     if (group) {
         lv_group_add_obj(group, card);
         lv_group_focus_obj(card);

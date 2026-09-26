@@ -100,12 +100,13 @@ set(SIM_SOURCES
     apps/overlays/boot_screen.c
     apps/overlays/screen_saver.c
     apps/overlays/usb_select.c
-    apps/vapps/vapp_tetris.c
-    apps/vapps/vapp_brick_breaker.c
-    apps/vapps/vapp_unit_converter.c
-    apps/vapps/vapp_morse_flasher.c
-    apps/vapps/vapp_chip_synth.c
-    apps/vapps/vapp_sys_monitor.c
+    apps/vapps/tetris/vapp_tetris.c
+    apps/vapps/brick_breaker/vapp_brick_breaker.c
+    apps/vapps/unit_converter/vapp_unit_converter.c
+    apps/vapps/morse_flasher/vapp_morse_flasher.c
+    apps/vapps/chip_synth/vapp_chip_synth.c
+    apps/vapps/sys_monitor/vapp_sys_monitor.c
+    apps/vapps/space_shooter/vapp_space_shooter.c
     drivers/mock/mock_connectivity.c
     drivers/mock/mock_hardware.c
     sdk/vfs/os_vfs.c
@@ -147,6 +148,13 @@ target_include_directories(veebha_os PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/apps/recorder
     ${CMAKE_CURRENT_SOURCE_DIR}/apps/overlays
     ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/tetris
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/brick_breaker
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/unit_converter
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/morse_flasher
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/chip_synth
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/sys_monitor
+    ${CMAKE_CURRENT_SOURCE_DIR}/apps/vapps/space_shooter
     ${CMAKE_CURRENT_SOURCE_DIR}/drivers
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lvgl
 )

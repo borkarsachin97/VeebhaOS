@@ -7,12 +7,13 @@
  */
 
 #include "vapp_loader.h"
-#include "apps/vapps/vapp_tetris.h"
-#include "apps/vapps/vapp_brick_breaker.h"
-#include "apps/vapps/vapp_unit_converter.h"
-#include "apps/vapps/vapp_morse_flasher.h"
-#include "apps/vapps/vapp_chip_synth.h"
-#include "apps/vapps/vapp_sys_monitor.h"
+#include "apps/vapps/tetris/vapp_tetris.h"
+#include "apps/vapps/brick_breaker/vapp_brick_breaker.h"
+#include "apps/vapps/unit_converter/vapp_unit_converter.h"
+#include "apps/vapps/morse_flasher/vapp_morse_flasher.h"
+#include "apps/vapps/chip_synth/vapp_chip_synth.h"
+#include "apps/vapps/sys_monitor/vapp_sys_monitor.h"
+#include "apps/vapps/space_shooter/vapp_space_shooter.h"
 #include "sdk/include/veebha_log.h"
 #include "sdk/include/veebha_win_mgr.h"
 #include "sdk/include/veebha_softkeys.h"
@@ -143,6 +144,10 @@ void vapp_loader_init(void)
     create_sample_package("tetris_retro.vapp", 6, VAPP_TYPE_GAME,
                           "Tetris Retro", "ArcadeClassics", "1.0.0",
                           LV_SYMBOL_PLAY, "Classic 10x16 falling tetromino puzzle", 16384, 8192);
+
+    create_sample_package("space_shooter.vapp", 7, VAPP_TYPE_GAME,
+                          "Space Shooter", "RetroGames", "1.0.0",
+                          LV_SYMBOL_PLAY, "Arcade space combat & alien invasion", 16384, 8192);
 #endif
 }
 
@@ -259,6 +264,20 @@ bool vapp_loader_read_header(const char *filepath, vapp_package_t *out_pkg)
             out_pkg->file_size = 16384;
             out_pkg->is_valid = true;
             return true;
+        } else if (strcmp(fn, "space_shooter.vapp") == 0) {
+            out_pkg->header.magic = VAPP_MAGIC;
+            out_pkg->header.abi_version = 1;
+            out_pkg->header.app_type = VAPP_TYPE_GAME;
+            out_pkg->header.app_id = 7;
+            strncpy(out_pkg->header.name, "Space Shooter", sizeof(out_pkg->header.name) - 1);
+            strncpy(out_pkg->header.author, "RetroGames", sizeof(out_pkg->header.author) - 1);
+            strncpy(out_pkg->header.version, "1.0.0", sizeof(out_pkg->header.version) - 1);
+            strncpy(out_pkg->header.icon_symbol, LV_SYMBOL_PLAY, sizeof(out_pkg->header.icon_symbol) - 1);
+            strncpy(out_pkg->header.description, "Arcade space combat & alien invasion", sizeof(out_pkg->header.description) - 1);
+            out_pkg->header.req_heap_bytes = 16384;
+            out_pkg->file_size = 16384;
+            out_pkg->is_valid = true;
+            return true;
         }
         return false;
     }
@@ -337,7 +356,8 @@ bool vapp_loader_scan_dir(vapp_package_t *out_packages, size_t max_packages, siz
             "morse_flasher.vapp",
             "chip_synth.vapp",
             "sys_monitor.vapp",
-            "tetris_retro.vapp"
+            "tetris_retro.vapp",
+            "space_shooter.vapp"
         };
         for (size_t i = 0; i < sizeof(default_apps)/sizeof(default_apps[0]) && *out_count < max_packages; i++) {
             char full[300];
@@ -396,6 +416,9 @@ bool vapp_loader_launch(const vapp_package_t *pkg)
     case 6:
         vapp_tetris_launch(pkg);
         break;
+    case 7:
+        vapp_space_shooter_launch(pkg);
+        break;
     default:
         if (strstr(pkg->filename, "tetris") != NULL || strcasestr(pkg->header.name, "tetris") != NULL) {
             vapp_tetris_launch(pkg);
@@ -409,6 +432,8 @@ bool vapp_loader_launch(const vapp_package_t *pkg)
             vapp_chip_synth_launch(pkg);
         } else if (strstr(pkg->filename, "sys") != NULL || strcasestr(pkg->header.name, "sys") != NULL) {
             vapp_sys_monitor_launch(pkg);
+        } else if (strstr(pkg->filename, "space") != NULL || strstr(pkg->filename, "shooter") != NULL || strcasestr(pkg->header.name, "shooter") != NULL) {
+            vapp_space_shooter_launch(pkg);
         } else {
             vapp_tetris_launch(pkg);
         }

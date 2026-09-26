@@ -127,7 +127,9 @@ static void on_rec_anim_tick(lv_timer_t *tmr)
 
 static void on_action_confirm_dialog(void)
 {
-    tpl_dialog_close();
+    if (tpl_dialog_is_active()) {
+        tpl_dialog_close();
+    }
 }
 
 static void on_recorder_action(void)
@@ -259,6 +261,9 @@ static void on_recorder_key_cb(lv_event_t *e)
 
 static void on_recorder_delete_cb(lv_event_t *e)
 {
+    if (tpl_dialog_is_active()) {
+        tpl_dialog_close();
+    }
     lv_obj_t *scr = lv_event_get_target(e);
     if (scr == s_active_recorder_scr) {
         s_active_recorder_scr = NULL;

@@ -20,6 +20,7 @@
 #include "veebha_templates.h"
 #include "veebha_overlays.h"
 #include "veebha_status_bar.h"
+#include "veebha_softkeys.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -76,11 +77,18 @@ static void win_mgr_apply_fullscreen_mode(lv_obj_t *screen, os_fullscreen_mode_t
     }
 
     win_mgr_screen_hdr_t *hdr = (win_mgr_screen_hdr_t *)lv_obj_get_user_data(screen);
-    lv_obj_t *status_bar = (lv_obj_get_child_count(screen) > 0) ? lv_obj_get_child(screen, 0) : NULL;
+    lv_obj_t *status_bar = NULL;
     lv_obj_t *softkey_bar = (hdr && hdr->softkey_bar) ? hdr->softkey_bar : NULL;
-    if (!softkey_bar && lv_obj_get_child_count(screen) > 1) {
-        lv_obj_t *last = lv_obj_get_child(screen, lv_obj_get_child_count(screen) - 1);
-        if (last != status_bar) softkey_bar = last;
+
+    uint32_t cnt = lv_obj_get_child_count(screen);
+    for (uint32_t i = 0; i < cnt; i++) {
+        lv_obj_t *ch = lv_obj_get_child(screen, i);
+        if (!status_bar && status_bar_is_status_bar(ch)) {
+            status_bar = ch;
+        }
+        if (!softkey_bar && softkey_bar_is_softkey_bar(ch)) {
+            softkey_bar = ch;
+        }
     }
 
     switch (mode) {
@@ -371,6 +379,10 @@ bool win_mgr_push(lv_obj_t *screen,
 
 bool win_mgr_pop(void)
 {
+    if (tpl_dialog_is_active()) {
+        tpl_dialog_close();
+    }
+
     if (s_active_task_idx < 0) {
         printf("[WIN_MGR] Cannot pop root/home screen (Depth: %u)\n", win_mgr_get_depth());
         return false;
@@ -740,7 +752,8 @@ bool win_mgr_task_kill(uint8_t task_idx)
     for (uint8_t i = 0; i < t->stack_depth; i++) {
         lv_obj_t *scr = t->stack[i].screen;
         if (scr && lv_obj_is_valid(scr)) {
-            if (scr == s_launcher_screen) {
+            win_mgr_screen_hdr_t *shdr = (win_mgr_screen_hdr_t *)lv_obj_get_user_data(scr);
+            if (scr == s_launcher_screen || (shdr && shdr->keep_alive)) {
                 lv_obj_add_flag(scr, LV_OBJ_FLAG_HIDDEN);
             } else {
                 lv_obj_delete_async(scr);
@@ -800,4 +813,18 @@ void win_mgr_for_each_screen(void (*cb)(lv_obj_t *screen, void *user_data), void
             }
         }
     }
+}
+
+bool win_mgr_is_screen_in_stack(lv_obj_t *screen)
+{
+    if (!screen) return false;
+    if (s_home_screen == screen) return true;
+    for (uint8_t i = 0; i < s_task_count; i++) {
+        for (uint8_t j = 0; j < s_tasks[i].stack_depth; j++) {
+            if (s_tasks[i].stack[j].screen == screen) {
+                return true;
+            }
+        }
+    }
+    return false;
 }

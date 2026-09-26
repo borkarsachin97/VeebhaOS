@@ -48,6 +48,7 @@ typedef struct {
     char               title[WIN_MGR_LABEL_MAX];
     os_fullscreen_mode_t fullscreen_mode;
     bool               show_battery_hud;
+    bool               keep_alive;
 
     char               filename[64];
     uint32_t           size_bytes;

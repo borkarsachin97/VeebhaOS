@@ -29,16 +29,22 @@ extern "C" {
  * If no board target is defined via compiler flags (-D...),
  * default to the SDL2 desktop simulator.
  */
-#if !defined(CONFIG_BOARD_SIMULATOR) && !defined(CONFIG_BOARD_OBTEL_B10) && !defined(CONFIG_BOARD_QEMU_XCPU)
+#if !defined(CONFIG_BOARD_SIMULATOR) && !defined(CONFIG_BOARD_OBTEL_B10)
 #define CONFIG_BOARD_SIMULATOR 1
 #endif
 
 #if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
 #include "simulator/board_simulator.h"
 #elif defined(CONFIG_BOARD_OBTEL_B10) && CONFIG_BOARD_OBTEL_B10
+#if defined(__has_include)
+#if __has_include("obtel_b10/board_obtel_b10.h")
 #include "obtel_b10/board_obtel_b10.h"
-#elif defined(CONFIG_BOARD_QEMU_XCPU) && CONFIG_BOARD_QEMU_XCPU
-#include "qemu_xcpu/board_qemu_xcpu.h"
+#else
+#error "OBTEL B10 BSP header not found. Please clone the BSP repository into boards/obtel_b10/ or set BSP include path."
+#endif
+#else
+#include "obtel_b10/board_obtel_b10.h"
+#endif
 #else
 #error "No valid board configuration selected in board_config.h!"
 #endif

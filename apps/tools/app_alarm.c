@@ -37,6 +37,7 @@ typedef struct {
     char               title[WIN_MGR_LABEL_MAX];
     os_fullscreen_mode_t fullscreen_mode;
     bool               show_battery_hud;
+    bool               keep_alive;
 
     uint8_t            hour;    /* 1..12 */
     uint8_t            minute;  /* 0..59 */
@@ -45,6 +46,9 @@ typedef struct {
 
     uint8_t            focus_col; /* 0: hour, 1: minute, 2: am_pm */
 
+    lv_obj_t          *hour_box;
+    lv_obj_t          *minute_box;
+    lv_obj_t          *ampm_box;
     lv_obj_t          *hour_lbl;
     lv_obj_t          *minute_lbl;
     lv_obj_t          *ampm_lbl;
@@ -67,6 +71,34 @@ const char * app_alarm_get_time_str(void)
     return s_alarm_time_str;
 }
 
+static void style_alarm_column(lv_obj_t *box, lv_obj_t *lbl, bool focused)
+{
+    if (!box || !lbl) return;
+
+    os_theme_id_t tid = theme_get_palette();
+    bool is_mono = (tid == THEME_HIGH_CONTRAST_BW);
+    bool is_light = theme_is_light_mode();
+
+    if (focused) {
+        lv_color_t bg = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->accent;
+        lv_color_t fg = (is_mono || !is_light) ? lv_color_hex(0x000000) : lv_color_hex(0xFFFFFF);
+
+        lv_obj_set_style_bg_color(box, bg, 0);
+        lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_color(box, bg, 0);
+        lv_obj_set_style_border_width(box, 1, 0);
+        lv_obj_set_style_text_color(lbl, fg, 0);
+    } else {
+        lv_color_t border_col = is_mono ? lv_color_hex(0x444444) : (is_light ? lv_color_hex(0xCCCCCC) : lv_color_hex(0x383F4D));
+        lv_color_t fg = is_mono ? lv_color_hex(0xFFFFFF) : theme_get()->text_primary;
+
+        lv_obj_set_style_bg_opa(box, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_color(box, border_col, 0);
+        lv_obj_set_style_border_width(box, 1, 0);
+        lv_obj_set_style_text_color(lbl, fg, 0);
+    }
+}
+
 static void update_alarm_ui(alarm_screen_data_t *data)
 {
     if (!data) return;
@@ -80,9 +112,9 @@ static void update_alarm_ui(alarm_screen_data_t *data)
     lv_label_set_text(data->ampm_lbl, data->is_pm ? "PM" : "AM");
 
     /* Focus highlight on active column */
-    lv_obj_set_style_text_color(data->hour_lbl, (data->focus_col == 0) ? theme_get()->accent : theme_get()->text_primary, 0);
-    lv_obj_set_style_text_color(data->minute_lbl, (data->focus_col == 1) ? theme_get()->accent : theme_get()->text_primary, 0);
-    lv_obj_set_style_text_color(data->ampm_lbl, (data->focus_col == 2) ? theme_get()->accent : theme_get()->text_primary, 0);
+    style_alarm_column(data->hour_box, data->hour_lbl, data->focus_col == 0);
+    style_alarm_column(data->minute_box, data->minute_lbl, data->focus_col == 1);
+    style_alarm_column(data->ampm_box, data->ampm_lbl, data->focus_col == 2);
 
     if (data->is_enabled) {
         lv_label_set_text(data->status_lbl, "Status: ENABLED (Bell On)");
@@ -259,7 +291,16 @@ lv_obj_t * app_alarm_create(void)
     lv_obj_set_style_border_color(card, theme_get()->accent, LV_STATE_FOCUSED);
     lv_obj_set_style_border_width(card, 2, LV_STATE_FOCUSED);
 
-    data->hour_lbl = lv_label_create(card);
+    /* Hour Box */
+    data->hour_box = lv_obj_create(card);
+    lv_obj_set_size(data->hour_box, 36, 28);
+    lv_obj_set_style_radius(data->hour_box, 4, 0);
+    lv_obj_set_style_pad_all(data->hour_box, 0, 0);
+    lv_obj_set_flex_flow(data->hour_box, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(data->hour_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(data->hour_box, LV_OBJ_FLAG_SCROLLABLE);
+
+    data->hour_lbl = lv_label_create(data->hour_box);
     lv_label_set_text(data->hour_lbl, "07");
     lv_obj_set_style_text_font(data->hour_lbl, &lv_font_montserrat_16, 0);
 
@@ -268,14 +309,32 @@ lv_obj_t * app_alarm_create(void)
     lv_obj_set_style_text_font(colon, &lv_font_montserrat_16, 0);
     lv_obj_set_style_text_color(colon, theme_get()->text_primary, 0);
 
-    data->minute_lbl = lv_label_create(card);
+    /* Minute Box */
+    data->minute_box = lv_obj_create(card);
+    lv_obj_set_size(data->minute_box, 36, 28);
+    lv_obj_set_style_radius(data->minute_box, 4, 0);
+    lv_obj_set_style_pad_all(data->minute_box, 0, 0);
+    lv_obj_set_flex_flow(data->minute_box, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(data->minute_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(data->minute_box, LV_OBJ_FLAG_SCROLLABLE);
+
+    data->minute_lbl = lv_label_create(data->minute_box);
     lv_label_set_text(data->minute_lbl, "00");
     lv_obj_set_style_text_font(data->minute_lbl, &lv_font_montserrat_16, 0);
 
     lv_obj_t *sp = lv_label_create(card);
     lv_label_set_text(sp, " ");
 
-    data->ampm_lbl = lv_label_create(card);
+    /* AM/PM Box */
+    data->ampm_box = lv_obj_create(card);
+    lv_obj_set_size(data->ampm_box, 36, 28);
+    lv_obj_set_style_radius(data->ampm_box, 4, 0);
+    lv_obj_set_style_pad_all(data->ampm_box, 0, 0);
+    lv_obj_set_flex_flow(data->ampm_box, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(data->ampm_box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(data->ampm_box, LV_OBJ_FLAG_SCROLLABLE);
+
+    data->ampm_lbl = lv_label_create(data->ampm_box);
     lv_label_set_text(data->ampm_lbl, "AM");
     lv_obj_set_style_text_font(data->ampm_lbl, &lv_font_montserrat_14, 0);
 

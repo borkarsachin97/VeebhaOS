@@ -41,6 +41,7 @@ typedef struct {
     char               title[WIN_MGR_LABEL_MAX];
     os_fullscreen_mode_t fullscreen_mode;
     bool               show_battery_hud;
+    bool               keep_alive;
 
     sw_mode_t          mode;
     bool               is_running;
@@ -147,13 +148,13 @@ static void update_stopwatch_ui(stopwatch_screen_data_t *data)
         uint32_t m = total_s / 60;
         uint32_t s = total_s % 60;
         snprintf(buf, sizeof(buf), "%02u:%02u.%u", m, s, tenths);
-        lv_label_set_text(data->hint_lbl, "LSK: Start | # or >: Timer");
+        lv_label_set_text(data->hint_lbl, "LSK: Start | >: Timer");
     } else {
         uint32_t total_s = data->timer_remaining_ms / 1000;
         uint32_t m = total_s / 60;
         uint32_t s = total_s % 60;
         snprintf(buf, sizeof(buf), "%02u:%02u", m, s);
-        lv_label_set_text(data->hint_lbl, "D-pad: Set Time | #: SW");
+        lv_label_set_text(data->hint_lbl, "<: SW | Up/Down: Time");
     }
     lv_label_set_text(data->time_lbl, buf);
 
@@ -237,31 +238,33 @@ void app_stopwatch_handle_key(veebha_key_t key)
             app_stopwatch_toggle_mode();
             return;
         }
-    } else if (data->mode == STOPWATCH_MODE_TIMER && !data->is_running) {
-        if (key == VEEBHA_KEY_UP) {
-            data->timer_duration_s += 60;
-            if (data->timer_duration_s > 3600) data->timer_duration_s = 3600;
-            data->timer_remaining_ms = data->timer_duration_s * 1000;
-            update_stopwatch_ui(data);
-        } else if (key == VEEBHA_KEY_DOWN) {
-            if (data->timer_duration_s > 60) data->timer_duration_s -= 60;
-            else data->timer_duration_s = 10;
-            data->timer_remaining_ms = data->timer_duration_s * 1000;
-            update_stopwatch_ui(data);
-        } else if (key == VEEBHA_KEY_RIGHT) {
-            data->timer_duration_s += 10;
-            data->timer_remaining_ms = data->timer_duration_s * 1000;
-            update_stopwatch_ui(data);
-        } else if (key == VEEBHA_KEY_LEFT) {
-            if (data->timer_duration_s > 10) data->timer_duration_s -= 10;
-            data->timer_remaining_ms = data->timer_duration_s * 1000;
-            update_stopwatch_ui(data);
-        } else if (key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) {
-            uint32_t val = (key - VEEBHA_KEY_NUM_0);
-            if (val > 0) {
-                data->timer_duration_s = val * 60;
+    } else if (data->mode == STOPWATCH_MODE_TIMER) {
+        if (key == VEEBHA_KEY_LEFT) {
+            app_stopwatch_toggle_mode();
+            return;
+        } else if (!data->is_running) {
+            if (key == VEEBHA_KEY_UP) {
+                data->timer_duration_s += 60;
+                if (data->timer_duration_s > 3600) data->timer_duration_s = 3600;
                 data->timer_remaining_ms = data->timer_duration_s * 1000;
                 update_stopwatch_ui(data);
+            } else if (key == VEEBHA_KEY_DOWN) {
+                if (data->timer_duration_s > 60) data->timer_duration_s -= 60;
+                else data->timer_duration_s = 10;
+                data->timer_remaining_ms = data->timer_duration_s * 1000;
+                update_stopwatch_ui(data);
+            } else if (key == VEEBHA_KEY_RIGHT) {
+                data->timer_duration_s += 10;
+                if (data->timer_duration_s > 3600) data->timer_duration_s = 3600;
+                data->timer_remaining_ms = data->timer_duration_s * 1000;
+                update_stopwatch_ui(data);
+            } else if (key >= VEEBHA_KEY_NUM_0 && key <= VEEBHA_KEY_NUM_9) {
+                uint32_t val = (key - VEEBHA_KEY_NUM_0);
+                if (val > 0) {
+                    data->timer_duration_s = val * 60;
+                    data->timer_remaining_ms = data->timer_duration_s * 1000;
+                    update_stopwatch_ui(data);
+                }
             }
         }
     }

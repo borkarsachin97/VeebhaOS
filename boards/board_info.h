@@ -33,6 +33,8 @@ typedef struct {
     const char *modem_type;
     const char *connectivity_chip;
     const char *os_version;
+    const char *os_developer;
+    const char *build_author;
     const char *build_timestamp;
 } board_info_t;
 

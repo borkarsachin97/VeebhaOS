@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define TAG "APP_TOOLS"
 
@@ -150,8 +151,55 @@ void app_tools_init(void)
     app_browser_init();
 }
 
+#include "sdk/include/veebha_theme.h"
+
+static lv_obj_t *s_tools_screen = NULL;
+static language_id_t s_tools_lang = (language_id_t)-1;
+static os_theme_id_t s_tools_theme = (os_theme_id_t)0xFF;
+
+static void on_tools_screen_deleted(lv_event_t *e)
+{
+    (void)e;
+    s_tools_screen = NULL;
+}
+
+void app_tools_invalidate(void)
+{
+    if (s_tools_screen && lv_obj_is_valid(s_tools_screen)) {
+        if (!win_mgr_is_screen_in_stack(s_tools_screen)) {
+            lv_obj_delete_async(s_tools_screen);
+            s_tools_screen = NULL;
+        }
+    }
+}
+
 void app_tools_open(void)
 {
+#if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+#endif
+
+    language_id_t cur_lang = veebha_i18n_get_language();
+    os_theme_id_t cur_theme = theme_get_palette();
+
+    if (s_tools_screen && lv_obj_is_valid(s_tools_screen)) {
+        if (s_tools_lang != cur_lang || s_tools_theme != cur_theme) {
+            lv_obj_delete_async(s_tools_screen);
+            s_tools_screen = NULL;
+        } else {
+            win_mgr_push(s_tools_screen, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+#if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
+            clock_gettime(CLOCK_MONOTONIC, &t1);
+            long us = (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L;
+            printf("[TOOLS] Tools Hub menu opened (cached, warm: %ld us)\n", us);
+#else
+            printf("[TOOLS] Tools Hub menu opened (cached, warm)\n");
+#endif
+            return;
+        }
+    }
+
     static tpl_list_item_t s_tools_items[10];
     s_tools_items[0] = (tpl_list_item_t){ .icon = NULL, .title = veebha_i18n_str(STR_CALCULATOR),  .subtext = "Basic Math Evaluator" };
     s_tools_items[1] = (tpl_list_item_t){ .icon = NULL, .title = veebha_i18n_str(STR_STOPWATCH),   .subtext = "Lap & Countdown" };
@@ -171,11 +219,22 @@ void app_tools_open(void)
         .on_select = on_tools_item_select,
         .on_back = NULL, /* Defaults to win_mgr_pop() */
         .lsk_label = veebha_i18n_str(STR_SELECT),
-        .rsk_label = veebha_i18n_str(STR_BACK)
+        .rsk_label = veebha_i18n_str(STR_BACK),
+        .keep_alive = true,
     };
 
-    lv_obj_t *tools_scr = tpl_list_create(&desc);
-    if (tools_scr) {
-        win_mgr_push(tools_scr, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+    s_tools_screen = tpl_list_create(&desc);
+    if (s_tools_screen) {
+        s_tools_lang = cur_lang;
+        s_tools_theme = cur_theme;
+        lv_obj_add_event_cb(s_tools_screen, on_tools_screen_deleted, LV_EVENT_DELETE, NULL);
+        win_mgr_push(s_tools_screen, veebha_i18n_str(STR_SELECT), tpl_list_default_lsk, veebha_i18n_str(STR_BACK), tpl_list_default_rsk);
+#if defined(CONFIG_BOARD_SIMULATOR) && CONFIG_BOARD_SIMULATOR
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        long us = (t1.tv_sec - t0.tv_sec) * 1000000L + (t1.tv_nsec - t0.tv_nsec) / 1000L;
+        printf("[TOOLS] Tools Hub menu opened (cold: %ld us)\n", us);
+#else
+        printf("[TOOLS] Tools Hub menu opened (cold)\n");
+#endif
     }
 }

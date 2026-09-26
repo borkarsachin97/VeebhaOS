@@ -39,6 +39,7 @@ typedef struct {
     char               title[WIN_MGR_LABEL_MAX];
     os_fullscreen_mode_t fullscreen_mode;
     bool               show_battery_hud;
+    bool               keep_alive;
 } dialer_screen_hdr_t;
 
 static char s_dial_buffer[DIALER_MAX_DIGITS + 1] = {0};

@@ -241,6 +241,14 @@ const status_bar_global_state_t * status_bar_get_global_state(void)
     return &s_global_state;
 }
 
+static const int s_status_bar_magic = 0x53544154; /* 'STAT' */
+
+bool status_bar_is_status_bar(lv_obj_t *obj)
+{
+    if (!obj || !lv_obj_is_valid(obj)) return false;
+    return lv_obj_get_user_data(obj) == (void *)&s_status_bar_magic;
+}
+
 lv_obj_t * status_bar_create(lv_obj_t *parent, const char *title)
 {
     LV_UNUSED(title);
@@ -248,6 +256,7 @@ lv_obj_t * status_bar_create(lv_obj_t *parent, const char *title)
 
     /* Zone A: Fixed 18px Top Status Bar */
     lv_obj_t *bar = lv_obj_create(parent);
+    lv_obj_set_user_data(bar, (void *)&s_status_bar_magic);
     lv_obj_set_size(bar, lv_pct(100), CONFIG_STATUS_BAR_HEIGHT);
     lv_obj_set_style_bg_color(bar, theme_is_light_mode() ? lv_color_hex(0xDCDCDC) : lv_color_hex(0x181A20), 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
